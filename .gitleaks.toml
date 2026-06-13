@@ -1,0 +1,10 @@
+# RivlayX — gitleaks config
+# Uses bundled default rules; overrides + allowlist here.
+
+[allowlist]
+description = "Allowlist for example/config files"
+paths = [
+  '''\.env\.example$''',
+  '''README\.md$''',
+  '''packages/shared/src/constants\.ts$''',
+]

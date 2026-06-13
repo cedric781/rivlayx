@@ -1,0 +1,30 @@
+{
+  "name": "@rivlayx/admin",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@rivlayx/auth": "workspace:*",
+    "@rivlayx/core": "workspace:*",
+    "@rivlayx/db": "workspace:*",
+    "@rivlayx/shared": "workspace:*",
+    "drizzle-orm": "^0.36.4",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@rivlayx/test-utils": "workspace:*",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
+}

@@ -1,0 +1,579 @@
+import { sql } from 'drizzle-orm';
+import {
+  bigserial,
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import { users } from './auth';
+
+/**
+ * `app` schema owns business state: bet templates, bets and everything
+ * attached to a bet (participants, rules, arbiters, evidence, events, audit
+ * log, share links). Auth lives in `auth`; money in `financial`.
+ */
+export const appSchema = pgSchema('app');
+
+// ───────────── value sets (Sprint 6) ─────────────
+
+export const betStatusValues = [
+  'DRAFT',
+  'OPEN',
+  'ACTIVE',
+  'AWAITING_RESULT',
+  'DISPUTED',
+  'RESOLVED',
+  'SETTLING',
+  'SETTLED',
+  'PAID',
+  'VOID',
+  'EXPIRED',
+  'CANCELLED',
+] as const;
+export type BetStatus = (typeof betStatusValues)[number];
+
+export const betTypeValues = ['sports_template', 'open_objective'] as const;
+export type BetType = (typeof betTypeValues)[number];
+
+export const resolveTypeValues = ['auto', 'evidence', 'arbiter'] as const;
+export type ResolveType = (typeof resolveTypeValues)[number];
+
+export const arbiterTypeValues = ['none', 'user_selected', 'platform_selected'] as const;
+export type ArbiterType = (typeof arbiterTypeValues)[number];
+
+export const arbiterAssignmentStatusValues = ['pending', 'accepted', 'declined'] as const;
+export type ArbiterAssignmentStatus = (typeof arbiterAssignmentStatusValues)[number];
+
+export const participantRoleValues = ['creator', 'acceptor'] as const;
+export type ParticipantRole = (typeof participantRoleValues)[number];
+
+export const betEventTypeValues = [
+  'bet_created',
+  'bet_opened',
+  'bet_accepted',
+  'bet_activated',
+  'bet_expired',
+  'bet_cancelled',
+  'bet_voided',
+  'bet_disputed',
+  'bet_resolved',
+  'bet_settling',
+  'bet_settled',
+  'bet_win',
+  'bet_loss',
+  'platform_fee',
+  'bet_paid',
+] as const;
+export type BetEventType = (typeof betEventTypeValues)[number];
+
+export const actorTypeValues = ['user', 'system', 'admin'] as const;
+export type ActorType = (typeof actorTypeValues)[number];
+
+// ───────────── bet_templates ─────────────
+
+export const betTemplates = appSchema.table('bet_templates', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  category: varchar('category', { length: 32 }).notNull(),
+  displayName: text('display_name').notNull(),
+  description: text('description'),
+  /**
+   * Predicate kind that this template binds to. Cross-checked against the
+   * predicate stored on bets that use this template.
+   */
+  predicateKind: varchar('predicate_kind', { length: 32 }).notNull(),
+  /** Allowed side labels (JSON array of strings) or NULL when free-form. */
+  sidesSchema: jsonb('sides_schema'),
+  /** Optional default settlement fee (basis points) for bets of this template. */
+  defaultSettlementFeeBps: integer('default_settlement_fee_bps').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ───────────── bets ─────────────
+
+export const bets = appSchema.table(
+  'bets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    shortCode: varchar('short_code', { length: 16 }).notNull().unique(),
+    creatorUserId: uuid('creator_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    acceptorUserId: uuid('acceptor_user_id').references(() => users.id, { onDelete: 'restrict' }),
+
+    betType: varchar('bet_type', { length: 24, enum: betTypeValues }).notNull(),
+    templateId: varchar('template_id', { length: 64 }).references(() => betTemplates.id),
+
+    title: text('title').notNull(),
+    description: text('description'),
+
+    resolveType: varchar('resolve_type', { length: 16, enum: resolveTypeValues }).notNull(),
+    /**
+     * Resolver-specific configuration:
+     *   - auto:     { provider, externalEventId }
+     *   - evidence: { spec }
+     *   - arbiter:  { arbiterUserId? }  (when user_selected; resolved via bet_arbiters too)
+     */
+    resolveSource: jsonb('resolve_source').notNull(),
+
+    arbiterType: varchar('arbiter_type', { length: 24, enum: arbiterTypeValues })
+      .notNull()
+      .default('none'),
+
+    stakePerSideUsdc: numeric('stake_per_side_usdc', { precision: 20, scale: 6 }).notNull(),
+    creationFeeUsdc: numeric('creation_fee_usdc', { precision: 20, scale: 6 })
+      .notNull()
+      .default('0'),
+    settlementFeeBps: integer('settlement_fee_bps').notNull(),
+
+    creatorSide: varchar('creator_side', { length: 64 }).notNull(),
+
+    status: varchar('status', { length: 24, enum: betStatusValues }).notNull().default('OPEN'),
+    version: integer('version').notNull().default(1),
+
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    eventAt: timestamp('event_at', { withTimezone: true }),
+    evidenceDeadline: timestamp('evidence_deadline', { withTimezone: true }),
+
+    /** Sprint 7 — proposed result + 24h dispute window. */
+    proposedWinnerUserId: uuid('proposed_winner_user_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    proposedOutcome: jsonb('proposed_outcome'),
+    proposedAt: timestamp('proposed_at', { withTimezone: true }),
+    disputeWindowEndsAt: timestamp('dispute_window_ends_at', { withTimezone: true }),
+
+    /** Sprint 7 — final winner after window closes or dispute ruling. */
+    resolvedWinnerUserId: uuid('resolved_winner_user_id').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    voidReason: text('void_reason'),
+
+    openedAt: timestamp('opened_at', { withTimezone: true }),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    expiredAt: timestamp('expired_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    statusExpiresIdx: index('bets_status_expires_idx').on(t.status, t.expiresAt),
+    creatorIdx: index('bets_creator_idx').on(t.creatorUserId),
+    acceptorIdx: index('bets_acceptor_idx').on(t.acceptorUserId),
+    templateIdx: index('bets_template_idx').on(t.templateId),
+    stakePositive: check('bets_stake_positive', sql`${t.stakePerSideUsdc} > 0`),
+    creationFeeNonNegative: check('bets_creation_fee_non_negative', sql`${t.creationFeeUsdc} >= 0`),
+    settlementFeeNonNegative: check(
+      'bets_settlement_fee_non_negative',
+      sql`${t.settlementFeeBps} >= 0`,
+    ),
+  }),
+);
+
+// ───────────── bet_participants ─────────────
+
+export const betParticipants = appSchema.table(
+  'bet_participants',
+  {
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    role: varchar('role', { length: 16, enum: participantRoleValues }).notNull(),
+    side: varchar('side', { length: 96 }).notNull(),
+    stakeLockedUsdc: numeric('stake_locked_usdc', { precision: 20, scale: 6 }).notNull(),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.betId, t.userId] }),
+    userIdx: index('bet_participants_user_idx').on(t.userId),
+    stakePositive: check('bet_participants_stake_positive', sql`${t.stakeLockedUsdc} > 0`),
+  }),
+);
+
+// ───────────── bet_rules ─────────────
+
+export const betRules = appSchema.table(
+  'bet_rules',
+  {
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    ruleIndex: integer('rule_index').notNull(),
+    /**
+     * Structured predicate matching one of the predicate kinds in
+     * `packages/core/src/bets/validation/predicate-types.ts`. This is the
+     * canonical objective rule — free-text title/description must be
+     * consistent with it but the predicate is what the resolve engine reads.
+     */
+    predicate: jsonb('predicate').notNull(),
+    /** Human-readable rendering of the predicate (auto-derived). */
+    display: text('display').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.betId, t.ruleIndex] }),
+  }),
+);
+
+// ───────────── bet_arbiters ─────────────
+
+export const betArbiters = appSchema.table(
+  'bet_arbiters',
+  {
+    betId: uuid('bet_id')
+      .primaryKey()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    arbiterUserId: uuid('arbiter_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    selectedBy: varchar('selected_by', { length: 16 }).notNull(),
+    status: varchar('status', {
+      length: 16,
+      enum: arbiterAssignmentStatusValues,
+    })
+      .notNull()
+      .default('pending'),
+    proposedAt: timestamp('proposed_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /** Sprint 7 — arbiter's structured ruling once `status='accepted'`. */
+    decision: jsonb('decision'),
+  },
+  (t) => ({
+    arbiterIdx: index('bet_arbiters_arbiter_idx').on(t.arbiterUserId),
+  }),
+);
+
+// ───────────── bet_evidence ─────────────
+// Upload metadata; resolution wiring lives in `packages/core/src/bets/evidence.ts`.
+
+export const betEvidence = appSchema.table(
+  'bet_evidence',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    uploaderUserId: uuid('uploader_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    storageKey: text('storage_key').notNull(),
+    sha256: varchar('sha256', { length: 64 }).notNull(),
+    contentType: varchar('content_type', { length: 64 }),
+    metadata: jsonb('metadata'),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    betIdx: index('bet_evidence_bet_idx').on(t.betId),
+    uploaderIdx: index('bet_evidence_uploader_idx').on(t.uploaderUserId),
+  }),
+);
+
+// ───────────── bet_events ─────────────
+// Business-level event feed (used for UI, notifications).
+
+export const betEvents = appSchema.table(
+  'bet_events',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    eventType: varchar('event_type', { length: 32, enum: betEventTypeValues }).notNull(),
+    actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    payload: jsonb('payload'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    betIdx: index('bet_events_bet_idx').on(t.betId, t.createdAt),
+    typeIdx: index('bet_events_type_idx').on(t.eventType),
+  }),
+);
+
+// ───────────── bet_audit_log ─────────────
+// Strict state-transition history (immutable; compliance).
+
+export const betAuditLog = appSchema.table(
+  'bet_audit_log',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    fromStatus: varchar('from_status', { length: 24, enum: betStatusValues }),
+    toStatus: varchar('to_status', { length: 24, enum: betStatusValues }).notNull(),
+    actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    actorType: varchar('actor_type', { length: 16, enum: actorTypeValues }).notNull(),
+    reason: text('reason'),
+    metadata: jsonb('metadata'),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    betIdx: index('bet_audit_log_bet_idx').on(t.betId, t.at),
+  }),
+);
+
+// ───────────── bet_share_links ─────────────
+
+export const betShareLinks = appSchema.table(
+  'bet_share_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    slug: varchar('slug', { length: 32 }).notNull(),
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    clicks: integer('clicks').notNull().default(0),
+    conversions: integer('conversions').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    slugUnique: unique('bet_share_links_slug_unique').on(t.slug),
+    betIdx: index('bet_share_links_bet_idx').on(t.betId),
+  }),
+);
+
+// ───────────── disputes (Sprint 7) ─────────────
+
+export const disputeStatusValues = ['open', 'upheld', 'rejected', 'withdrawn'] as const;
+export type DisputeStatus = (typeof disputeStatusValues)[number];
+
+export const disputes = appSchema.table(
+  'disputes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    openerUserId: uuid('opener_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** Which participant the opener claims should win. Must be creator or acceptor. */
+    claimedWinnerUserId: uuid('claimed_winner_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    depositUsdc: numeric('deposit_usdc', { precision: 20, scale: 6 }).notNull(),
+    status: varchar('status', { length: 16, enum: disputeStatusValues }).notNull().default('open'),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    ruledAt: timestamp('ruled_at', { withTimezone: true }),
+    ruledByUserId: uuid('ruled_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    rulingNotes: text('ruling_notes'),
+  },
+  (t) => ({
+    statusIdx: index('disputes_status_idx').on(t.status, t.openedAt),
+    openerIdx: index('disputes_opener_idx').on(t.openerUserId),
+    betIdx: index('disputes_bet_idx').on(t.betId, t.status),
+    depositPositive: check('disputes_deposit_positive', sql`${t.depositUsdc} > 0`),
+  }),
+);
+
+// ───────────── auto-resolve attempts (Sprint 9) ─────────────
+
+export const autoResolveStatusValues = [
+  'final',
+  'pending',
+  'cancelled',
+  'invalid',
+  'error',
+] as const;
+export type AutoResolveStatus = (typeof autoResolveStatusValues)[number];
+
+/**
+ * Append-only ledger of every attempt the auto-resolve runner makes for a
+ * given bet. `final` records the resolution; `pending` / `cancelled` /
+ * `invalid` capture the provider's view that the event is not yet (or never)
+ * resolvable; `error` captures unexpected provider failures.
+ */
+export const autoResolveAttempts = appSchema.table(
+  'auto_resolve_attempts',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    status: varchar('status', { length: 16, enum: autoResolveStatusValues }).notNull(),
+    errorMessage: text('error_message'),
+    /** Raw provider payload, useful for audit + debugging. */
+    rawPayload: jsonb('raw_payload'),
+    /** Normalized ProviderResult, present when status='final'. */
+    outcome: jsonb('outcome'),
+    attemptedAt: timestamp('attempted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    betIdx: index('auto_resolve_attempts_bet_idx').on(t.betId, t.attemptedAt),
+    statusIdx: index('auto_resolve_attempts_status_idx').on(t.status, t.attemptedAt),
+  }),
+);
+
+// ───────────── settlements (Sprint 10) ─────────────
+// Ledger-level settlement record for a RESOLVED bet. UNIQUE(bet_id) is the
+// double-settle guard; the row is the source of truth for which winner /
+// platform_fee ledger txn corresponds to which bet.
+
+export const settlementKindValues = ['winner_payout', 'draw_refund'] as const;
+export type SettlementKind = (typeof settlementKindValues)[number];
+
+export const settlements = appSchema.table(
+  'settlements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'restrict' }),
+    kind: varchar('kind', { length: 16, enum: settlementKindValues }).notNull(),
+    /** For 'winner_payout': the winning user. NULL on 'draw_refund'. */
+    winnerUserId: uuid('winner_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    /** For 'winner_payout': the losing user. NULL on 'draw_refund'. */
+    loserUserId: uuid('loser_user_id').references(() => users.id, { onDelete: 'restrict' }),
+    /** Gross pot = 2 × stake. */
+    potUsdc: numeric('pot_usdc', { precision: 20, scale: 6 }).notNull(),
+    /** Gross winner share — pot for 'winner_payout', stake for 'draw_refund'. */
+    grossWinnerUsdc: numeric('gross_winner_usdc', { precision: 20, scale: 6 }).notNull(),
+    /** Platform fee taken — 0 on 'draw_refund'. */
+    platformFeeUsdc: numeric('platform_fee_usdc', { precision: 20, scale: 6 }).notNull(),
+    /** Net to winner — gross_winner - platform_fee. */
+    netWinnerUsdc: numeric('net_winner_usdc', { precision: 20, scale: 6 }).notNull(),
+    /** Pointer to the ledger txn that moved escrow → winner + platform_fee. */
+    ledgerTxnId: uuid('ledger_txn_id').notNull(),
+    settledAt: timestamp('settled_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    betUnique: unique('settlements_bet_unique').on(t.betId),
+    winnerIdx: index('settlements_winner_idx').on(t.winnerUserId),
+    feeNonNegative: check('settlements_fee_non_negative', sql`${t.platformFeeUsdc} >= 0`),
+    netNonNegative: check('settlements_net_non_negative', sql`${t.netWinnerUsdc} >= 0`),
+  }),
+);
+
+// ───────────── payouts (Sprint 11) ─────────────
+// One row per (settlement, payee). For winner_payout settlements that's
+// 1 row (winner); for draw_refund it's 2 rows (creator + acceptor).
+// UNIQUE(settlement_id, user_id) is the double-queue guard.
+
+export const payoutStatusValues = [
+  'pending',
+  'processing',
+  'succeeded',
+  'failed',
+  'cancelled',
+] as const;
+export type PayoutStatus = (typeof payoutStatusValues)[number];
+
+export const payouts = appSchema.table(
+  'payouts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    betId: uuid('bet_id')
+      .notNull()
+      .references(() => bets.id, { onDelete: 'restrict' }),
+    settlementId: uuid('settlement_id')
+      .notNull()
+      .references(() => settlements.id, { onDelete: 'restrict' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    amountUsdc: numeric('amount_usdc', { precision: 20, scale: 6 }).notNull(),
+    status: varchar('status', { length: 16, enum: payoutStatusValues })
+      .notNull()
+      .default('pending'),
+    destinationWallet: varchar('destination_wallet', { length: 64 }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    lastError: text('last_error'),
+    txSignature: varchar('tx_signature', { length: 128 }),
+    ledgerTxnId: uuid('ledger_txn_id'),
+    succeededAt: timestamp('succeeded_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    settlementUserUnique: unique('payouts_settlement_user_unique').on(t.settlementId, t.userId),
+    statusIdx: index('payouts_status_idx').on(t.status, t.nextAttemptAt),
+    userIdx: index('payouts_user_idx').on(t.userId),
+    betIdx: index('payouts_bet_idx').on(t.betId),
+    amountPositive: check('payouts_amount_positive', sql`${t.amountUsdc} > 0`),
+    attemptsNonNegative: check('payouts_attempts_non_negative', sql`${t.attempts} >= 0`),
+  }),
+);
+
+export const payoutAttemptStatusValues = [
+  'succeeded',
+  'failed_retryable',
+  'failed_permanent',
+] as const;
+export type PayoutAttemptStatus = (typeof payoutAttemptStatusValues)[number];
+
+export const payoutAttempts = appSchema.table(
+  'payout_attempts',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    payoutId: uuid('payout_id')
+      .notNull()
+      .references(() => payouts.id, { onDelete: 'cascade' }),
+    attemptNumber: integer('attempt_number').notNull(),
+    status: varchar('status', { length: 24, enum: payoutAttemptStatusValues }).notNull(),
+    txSignature: varchar('tx_signature', { length: 128 }),
+    errorMessage: text('error_message'),
+    attemptedAt: timestamp('attempted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    payoutIdx: index('payout_attempts_payout_idx').on(t.payoutId, t.attemptNumber),
+    statusIdx: index('payout_attempts_status_idx').on(t.status, t.attemptedAt),
+  }),
+);
+
+// ───────────── inferred types ─────────────
+
+export type BetTemplate = typeof betTemplates.$inferSelect;
+export type NewBetTemplate = typeof betTemplates.$inferInsert;
+export type Bet = typeof bets.$inferSelect;
+export type NewBet = typeof bets.$inferInsert;
+export type BetParticipant = typeof betParticipants.$inferSelect;
+export type NewBetParticipant = typeof betParticipants.$inferInsert;
+export type BetRule = typeof betRules.$inferSelect;
+export type NewBetRule = typeof betRules.$inferInsert;
+export type BetArbiter = typeof betArbiters.$inferSelect;
+export type NewBetArbiter = typeof betArbiters.$inferInsert;
+export type BetEvidence = typeof betEvidence.$inferSelect;
+export type NewBetEvidence = typeof betEvidence.$inferInsert;
+export type BetEvent = typeof betEvents.$inferSelect;
+export type NewBetEvent = typeof betEvents.$inferInsert;
+export type BetAuditLog = typeof betAuditLog.$inferSelect;
+export type NewBetAuditLog = typeof betAuditLog.$inferInsert;
+export type BetShareLink = typeof betShareLinks.$inferSelect;
+export type NewBetShareLink = typeof betShareLinks.$inferInsert;
+export type Dispute = typeof disputes.$inferSelect;
+export type NewDispute = typeof disputes.$inferInsert;
+export type AutoResolveAttempt = typeof autoResolveAttempts.$inferSelect;
+export type NewAutoResolveAttempt = typeof autoResolveAttempts.$inferInsert;
+export type Settlement = typeof settlements.$inferSelect;
+export type NewSettlement = typeof settlements.$inferInsert;
+export type Payout = typeof payouts.$inferSelect;
+export type NewPayout = typeof payouts.$inferInsert;
+export type PayoutAttempt = typeof payoutAttempts.$inferSelect;
+export type NewPayoutAttempt = typeof payoutAttempts.$inferInsert;
