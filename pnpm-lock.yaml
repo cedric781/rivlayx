@@ -93,6 +93,9 @@ importers:
       '@rivlayx/helius':
         specifier: workspace:*
         version: link:../../packages/helius
+      '@rivlayx/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
       '@rivlayx/shared':
         specifier: workspace:*
         version: link:../../packages/shared

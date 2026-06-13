@@ -18,6 +18,7 @@
     "@rivlayx/core": "workspace:*",
     "@rivlayx/db": "workspace:*",
     "@rivlayx/helius": "workspace:*",
+    "@rivlayx/providers": "workspace:*",
     "@rivlayx/shared": "workspace:*",
     "drizzle-orm": "^0.36.4",
     "next": "^15.1.0",
