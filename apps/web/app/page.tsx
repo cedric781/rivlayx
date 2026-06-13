@@ -5,7 +5,8 @@ export default function HomePage() {
     <main style={{ maxWidth: 720, margin: '4rem auto', padding: '0 1rem' }}>
       <h1>RivlayX</h1>
       <p>Crypto-native objective wagering on Solana / USDC.</p>
-      <p style={{ marginTop: '2rem' }}>
+      <p style={{ marginTop: '2rem', display: 'flex', gap: '1.5rem' }}>
+        <Link href="/bets">Browse open bets →</Link>
         <Link href="/login">Sign in →</Link>
       </p>
       <p style={{ marginTop: '4rem', fontSize: 12, opacity: 0.6 }}>

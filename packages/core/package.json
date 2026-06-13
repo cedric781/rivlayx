@@ -10,6 +10,7 @@
     "./ledger": "./src/ledger/index.ts",
     "./deposits": "./src/deposits/index.ts",
     "./bets": "./src/bets/index.ts",
+    "./marketplace": "./src/marketplace/index.ts",
     "./admin": "./src/admin/index.ts"
   },
   "scripts": {
