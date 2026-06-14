@@ -1,5 +1,5 @@
 /** Build a `/bets` href by merging overrides onto the current search params. */
-const KEYS = ['section', 'q', 'category', 'sport', 'resolveType', 'minStake', 'maxStake', 'page', 'pageSize'] as const;
+const KEYS = ['section', 'q', 'category', 'sport', 'resolveType', 'tier', 'minStake', 'maxStake', 'page', 'pageSize'] as const;
 type Key = (typeof KEYS)[number];
 
 export type RawSearchParams = Record<string, string | string[] | undefined>;

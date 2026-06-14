@@ -1,7 +1,7 @@
 import { and, eq, or, sql } from 'drizzle-orm';
-import { bets, disputes, settlements, users } from '@rivlayx/db';
+import { betArbiters, bets, disputes, settlements, users } from '@rivlayx/db';
 import { REPUTATION_DEFAULTS, type ReputationConfig } from './config';
-import type { ReputationSignals } from './types';
+import type { ArbiterSignals, ReputationSignals } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ReputationDb = any;
@@ -116,5 +116,38 @@ export async function gatherReputationSignals(
     frivolousDisputes: Number(frivRow?.n ?? 0),
     adverseDisputes: Number(firstRow(advRes)?.['n'] ?? 0),
     status: user.status,
+  };
+}
+
+/**
+ * Gather arbiter signals for a user from `bet_arbiters` + `disputes`:
+ *   accepted/declined → acceptance rate
+ *   rulings (decision recorded) → experience
+ *   overturned (a ruling whose bet later had an upheld dispute) → accuracy
+ */
+export async function gatherArbiterSignals(
+  db: ReputationDb,
+  userId: string,
+): Promise<ArbiterSignals> {
+  const [counts] = await db
+    .select({
+      accepted: sql<number>`count(*) filter (where ${betArbiters.status} = 'accepted')`,
+      declined: sql<number>`count(*) filter (where ${betArbiters.status} = 'declined')`,
+      rulings: sql<number>`count(*) filter (where ${betArbiters.decision} is not null)`,
+    })
+    .from(betArbiters)
+    .where(eq(betArbiters.arbiterUserId, userId));
+
+  const overturnedRes = await db.execute(sql`
+    SELECT count(DISTINCT ba.bet_id) AS overturned
+    FROM "app"."bet_arbiters" ba
+    JOIN "app"."disputes" d ON d.bet_id = ba.bet_id AND d.status = 'upheld'
+    WHERE ba.arbiter_user_id = ${userId} AND ba.decision IS NOT NULL`);
+
+  return {
+    accepted: Number(counts?.accepted ?? 0),
+    declined: Number(counts?.declined ?? 0),
+    rulings: Number(counts?.rulings ?? 0),
+    overturned: Number(firstRow(overturnedRes)?.['overturned'] ?? 0),
   };
 }

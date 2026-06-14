@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js';
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
-import { bets, disputes, type BetStatus, type NewDispute } from '@rivlayx/db';
+import { betArbiters, bets, disputes, type BetStatus, type NewDispute } from '@rivlayx/db';
 import { BetError } from './errors';
 import { recordBetTransition } from './audit';
 import { DISPUTE_DEFAULTS, computeDisputeDeposit, type DisputeConfig } from './dispute-config';
@@ -257,6 +257,15 @@ export async function ruleDispute(db: BetDb, input: RuleDisputeInput): Promise<R
     await enqueueReputationRefresh(tx, row['creator_user_id'] as string, 'dispute_ruling');
     if (row['acceptor_user_id']) {
       await enqueueReputationRefresh(tx, row['acceptor_user_id'] as string, 'dispute_ruling');
+    }
+    // An upheld dispute may overturn the bet's arbiter — refresh them too.
+    const [arb] = await tx
+      .select({ arbiterUserId: betArbiters.arbiterUserId })
+      .from(betArbiters)
+      .where(eq(betArbiters.betId, dispute.betId))
+      .limit(1);
+    if (arb?.arbiterUserId) {
+      await enqueueReputationRefresh(tx, arb.arbiterUserId, 'dispute_ruling');
     }
 
     return { dispute: updatedDispute!, bet: updatedBet[0]! };

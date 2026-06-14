@@ -51,3 +51,28 @@ export interface PublicReputation {
   tier: ReputationTier;
   provisional: boolean;
 }
+
+// ───────────── arbiter reputation (Sprint 16) ─────────────
+
+/** Raw arbiter signals from `bet_arbiters` + `disputes`. */
+export interface ArbiterSignals {
+  /** Assignments accepted (status='accepted'). */
+  accepted: number;
+  /** Assignments declined (status='declined'). */
+  declined: number;
+  /** Rulings actually made (decision recorded). */
+  rulings: number;
+  /** Rulings later reversed by an upheld dispute. */
+  overturned: number;
+}
+
+export interface ArbiterReputationResult {
+  arbiterScore: number;
+  arbiterTier: ReputationTier;
+  arbiterProvisional: boolean;
+  arbiterRulings: number;
+  /** 0–1, rounded to 4 decimals. */
+  overturnedRate: number;
+  /** 0–1, rounded to 4 decimals. */
+  acceptanceRate: number;
+}

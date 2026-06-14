@@ -76,6 +76,15 @@ function buildConditions(params: ListBetsParams, now: Date): SQL[] {
     conditions.push(eq(bets.resolveType, params.resolveType));
   }
 
+  // Exact creator-tier filter. A creator with no snapshot yet counts as 'new'.
+  if (params.tier) {
+    if (params.tier === 'new') {
+      conditions.push(or(eq(userReputation.tier, 'new'), isNull(userReputation.tier))!);
+    } else {
+      conditions.push(eq(userReputation.tier, params.tier));
+    }
+  }
+
   if (params.q && params.q.trim().length > 0) {
     const pattern = `%${escapeLike(params.q.trim())}%`;
     conditions.push(or(ilike(bets.title, pattern), ilike(bets.description, pattern))!);
@@ -131,7 +140,14 @@ export async function listMarketplaceBets(
       break;
     case 'trending': {
       const recency = sql`greatest(0, 48 - extract(epoch from (${now}::timestamptz - ${bets.createdAt})) / 3600)`;
-      orderBy = [sql`(coalesce(${shareAgg.engagement}, 0) + ${recency}) desc`, ...tiebreak];
+      // Modest creator-reputation boost — only in trending (Sprint 16).
+      const repBoost = sql`(case ${userReputation.tier}
+        when 'trusted' then 6 when 'gold' then 4 when 'silver' then 2 when 'bronze' then 1
+        else 0 end)`;
+      orderBy = [
+        sql`(coalesce(${shareAgg.engagement}, 0) + ${recency} + ${repBoost}) desc`,
+        ...tiebreak,
+      ];
       break;
     }
     case 'newest':
@@ -168,6 +184,7 @@ export async function listMarketplaceBets(
     .select({ value: count() })
     .from(bets)
     .leftJoin(betTemplates, eq(betTemplates.id, bets.templateId))
+    .leftJoin(userReputation, eq(userReputation.userId, bets.creatorUserId))
     .where(where);
 
   const items: MarketplaceListItem[] = rows.map((r: (typeof rows)[number]) => ({

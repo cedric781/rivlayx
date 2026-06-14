@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { computeReputation } from './score';
-import type { ReputationSignals } from './types';
+import { computeArbiterReputation, computeReputation } from './score';
+import type { ArbiterSignals, ReputationSignals } from './types';
+
+function arbiterSignals(overrides: Partial<ArbiterSignals> = {}): ArbiterSignals {
+  return { accepted: 0, declined: 0, rulings: 0, overturned: 0, ...overrides };
+}
 
 function signals(overrides: Partial<ReputationSignals> = {}): ReputationSignals {
   return {
@@ -133,5 +137,51 @@ describe('computeReputation — win-rate', () => {
       }),
     );
     expect(noAnomaly.components.winRateAnomaly).toBe(false);
+  });
+});
+
+describe('computeArbiterReputation', () => {
+  it('scores an accurate, accepting, experienced arbiter as trusted', () => {
+    const r = computeArbiterReputation(
+      arbiterSignals({ accepted: 10, declined: 0, rulings: 10, overturned: 0 }),
+    );
+    expect(r.arbiterProvisional).toBe(false);
+    expect(r.arbiterTier).toBe('trusted');
+    expect(r.acceptanceRate).toBe(1);
+    expect(r.overturnedRate).toBe(0);
+  });
+
+  it('marks an arbiter with too few rulings as provisional ("new")', () => {
+    const r = computeArbiterReputation(arbiterSignals({ accepted: 2, rulings: 2 }));
+    expect(r.arbiterProvisional).toBe(true);
+    expect(r.arbiterTier).toBe('new');
+  });
+
+  it('overturned rate is the dominant factor — heavy overturns can never be trusted', () => {
+    const r = computeArbiterReputation(
+      arbiterSignals({ accepted: 20, declined: 0, rulings: 20, overturned: 10 }),
+    );
+    expect(r.overturnedRate).toBe(0.5);
+    expect(r.arbiterTier).not.toBe('trusted');
+  });
+
+  it('hard rule: overturnedRate > 5% caps the tier below trusted even with a high score', () => {
+    // 50 rulings, only 3 overturned (6%) — would otherwise score into trusted.
+    const r = computeArbiterReputation(
+      arbiterSignals({ accepted: 50, declined: 0, rulings: 50, overturned: 3 }),
+    );
+    expect(r.overturnedRate).toBeCloseTo(0.06, 2);
+    expect(r.arbiterTier).not.toBe('trusted');
+    expect(r.arbiterScore).toBeLessThanOrEqual(79);
+  });
+
+  it('acceptance rate ranks below overturned but above experience', () => {
+    const lowAcceptance = computeArbiterReputation(
+      arbiterSignals({ accepted: 5, declined: 15, rulings: 5, overturned: 0 }),
+    );
+    const highAcceptance = computeArbiterReputation(
+      arbiterSignals({ accepted: 20, declined: 0, rulings: 5, overturned: 0 }),
+    );
+    expect(highAcceptance.arbiterScore).toBeGreaterThan(lowAcceptance.arbiterScore);
   });
 });

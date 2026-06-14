@@ -6,6 +6,15 @@ import { marketplace } from '@rivlayx/core';
 import { resolveTypeValues } from '@rivlayx/db';
 import { humanizeCategory, humanizeResolveType } from '@/lib/marketplace/format';
 
+/** Exact creator-tier filter options (Sprint 16). */
+const TIER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'trusted', label: 'Trusted' },
+  { value: 'gold', label: 'Gold' },
+  { value: 'silver', label: 'Silver' },
+  { value: 'bronze', label: 'Bronze' },
+  { value: 'new', label: 'New' },
+];
+
 const inputStyle: React.CSSProperties = {
   padding: '0.4rem 0.55rem',
   borderRadius: 8,
@@ -22,6 +31,7 @@ export function MarketplaceFilters() {
   const [category, setCategory] = useState(sp.get('category') ?? '');
   const [sport, setSport] = useState(sp.get('sport') ?? '');
   const [resolveType, setResolveType] = useState(sp.get('resolveType') ?? '');
+  const [tier, setTier] = useState(sp.get('tier') ?? '');
   const [minStake, setMinStake] = useState(sp.get('minStake') ?? '');
   const [maxStake, setMaxStake] = useState(sp.get('maxStake') ?? '');
 
@@ -34,6 +44,7 @@ export function MarketplaceFilters() {
     if (category) params.set('category', category);
     if (sport) params.set('sport', sport);
     if (resolveType) params.set('resolveType', resolveType);
+    if (tier) params.set('tier', tier);
     if (minStake) params.set('minStake', minStake);
     if (maxStake) params.set('maxStake', maxStake);
     router.push(params.toString() ? `/bets?${params.toString()}` : '/bets');
@@ -44,6 +55,7 @@ export function MarketplaceFilters() {
     setCategory('');
     setSport('');
     setResolveType('');
+    setTier('');
     setMinStake('');
     setMaxStake('');
     const section = sp.get('section');
@@ -102,6 +114,15 @@ export function MarketplaceFilters() {
         {resolveTypeValues.map((r) => (
           <option key={r} value={r}>
             {humanizeResolveType(r)}
+          </option>
+        ))}
+      </select>
+
+      <select value={tier} onChange={(e) => setTier(e.target.value)} style={inputStyle} aria-label="Creator tier">
+        <option value="">All tiers</option>
+        {TIER_OPTIONS.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
           </option>
         ))}
       </select>

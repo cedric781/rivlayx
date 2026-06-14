@@ -43,6 +43,8 @@ export interface ListBetsParams {
   /** Narrow to one specific sport category, e.g. `football`. Refines `category`. */
   sport?: SportCategory;
   resolveType?: ResolveType;
+  /** Exact creator-reputation tier filter (Sprint 16). `new` includes creators with no snapshot yet. */
+  tier?: ReputationTier;
   /** Inclusive stake-per-side bounds in USDC (decimal strings or numbers). */
   minStake?: string | number;
   maxStake?: string | number;

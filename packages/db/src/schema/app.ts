@@ -573,12 +573,31 @@ export const userReputation = appSchema.table('user_reputation', {
   provisional: boolean('provisional').notNull().default(true),
   /** Raw signals + sub-scores + winRateAnomaly. Internal (T&S / debug). */
   components: jsonb('components').notNull().default({}),
+  // ── arbiter reputation (Sprint 16) — adjudicator trust, same row ──
+  /** 0–100 arbiter score. Internal — public surface is the tier badge only. */
+  arbiterScore: integer('arbiter_score').notNull().default(0),
+  arbiterTier: varchar('arbiter_tier', { length: 16, enum: reputationTierValues })
+    .notNull()
+    .default('new'),
+  arbiterProvisional: boolean('arbiter_provisional').notNull().default(true),
+  arbiterRulings: integer('arbiter_rulings').notNull().default(0),
+  arbiterOverturnedRate: numeric('arbiter_overturned_rate', { precision: 5, scale: 4 })
+    .notNull()
+    .default('0'),
+  arbiterAcceptanceRate: numeric('arbiter_acceptance_rate', { precision: 5, scale: 4 })
+    .notNull()
+    .default('0'),
   computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   scoreIdx: index('user_reputation_score_idx').on(t.score),
   tierIdx: index('user_reputation_tier_idx').on(t.tier),
+  arbiterScoreIdx: index('user_reputation_arbiter_score_idx').on(t.arbiterScore),
   scoreRange: check('user_reputation_score_range', sql`${t.score} >= 0 AND ${t.score} <= 100`),
+  arbiterScoreRange: check(
+    'user_reputation_arbiter_score_range',
+    sql`${t.arbiterScore} >= 0 AND ${t.arbiterScore} <= 100`,
+  ),
 }));
 
 export const reputationRefreshReasonValues = [
@@ -588,6 +607,7 @@ export const reputationRefreshReasonValues = [
   'ban',
   'reinstate',
   'backfill',
+  'arbiter_action',
 ] as const;
 export type ReputationRefreshReason = (typeof reputationRefreshReasonValues)[number];
 

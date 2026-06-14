@@ -2,6 +2,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { betArbiters, betEvents, type BetStatus } from '@rivlayx/db';
 import { BetError } from './errors';
 import { proposeResult } from './resolve';
+import { enqueueReputationRefresh } from '../reputation/queue';
 import type {
   ArbiterAcceptInput,
   ArbiterDeclineInput,
@@ -44,6 +45,7 @@ export async function arbiterAcceptAssignment(db: BetDb, input: ArbiterAcceptInp
       actorUserId: input.arbiterUserId,
       payload: { kind: 'arbiter_accepted' },
     });
+    await enqueueReputationRefresh(tx, input.arbiterUserId, 'arbiter_action');
   });
 }
 
@@ -74,6 +76,7 @@ export async function arbiterDeclineAssignment(
       actorUserId: input.arbiterUserId,
       payload: { kind: 'arbiter_declined', reason: input.reason ?? null },
     });
+    await enqueueReputationRefresh(tx, input.arbiterUserId, 'arbiter_action');
   });
 }
 
@@ -116,6 +119,7 @@ export async function arbiterRule(db: BetDb, input: ArbiterRuleInput): Promise<A
     .update(betArbiters)
     .set({ decision: input.decision, decidedAt: new Date() })
     .where(eq(betArbiters.betId, input.betId));
+  await enqueueReputationRefresh(db, input.arbiterUserId, 'arbiter_action');
 
   const proposed = await proposeResult(db, {
     betId: input.betId,

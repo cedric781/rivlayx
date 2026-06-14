@@ -1,6 +1,15 @@
 import type { ReputationTier } from '@rivlayx/db';
 import { REPUTATION_DEFAULTS, type ReputationConfig } from './config';
-import type { ReputationResult, ReputationSignals } from './types';
+import type {
+  ArbiterReputationResult,
+  ArbiterSignals,
+  ReputationResult,
+  ReputationSignals,
+} from './types';
+
+function round4(x: number): number {
+  return Math.round(x * 10000) / 10000;
+}
 
 function clamp(x: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, x));
@@ -94,5 +103,50 @@ export function computeReputation(
       winRateAnomaly,
       signals,
     },
+  };
+}
+
+/**
+ * Pure arbiter (adjudicator) scoring. Priority is accuracy first (1 − overturned
+ * rate), then acceptance rate, then experience (rulings). Hard rule: an arbiter
+ * whose rulings are overturned more than `trustedMaxOverturnedRate` can never
+ * reach the `trusted` tier, regardless of volume.
+ */
+export function computeArbiterReputation(
+  signals: ArbiterSignals,
+  config: ReputationConfig = REPUTATION_DEFAULTS,
+): ArbiterReputationResult {
+  const a = config.arbiter;
+  const decided = signals.accepted + signals.declined;
+  const acceptanceRate = decided > 0 ? signals.accepted / decided : 0;
+  const overturnedRate = signals.rulings > 0 ? signals.overturned / signals.rulings : 0;
+
+  const accuracy = 1 - overturnedRate;
+  const experience = norm(signals.rulings, a.rulingsTarget);
+  const positive =
+    a.weights.accuracy * accuracy +
+    a.weights.acceptance * acceptanceRate +
+    a.weights.experience * experience;
+
+  let arbiterScore = clamp(Math.round(100 * positive), 0, 100);
+  const arbiterProvisional = signals.rulings < a.minRulings;
+
+  let arbiterTier: ReputationTier = arbiterProvisional
+    ? 'new'
+    : tierForScore(arbiterScore, config);
+
+  // Hard rule: frequently-overturned arbiters can never be Trusted.
+  if (arbiterTier === 'trusted' && overturnedRate > a.trustedMaxOverturnedRate) {
+    arbiterScore = Math.min(arbiterScore, 79);
+    arbiterTier = tierForScore(arbiterScore, config);
+  }
+
+  return {
+    arbiterScore,
+    arbiterTier,
+    arbiterProvisional,
+    arbiterRulings: signals.rulings,
+    overturnedRate: round4(overturnedRate),
+    acceptanceRate: round4(acceptanceRate),
   };
 }

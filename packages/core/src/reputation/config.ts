@@ -37,6 +37,17 @@ export interface ReputationConfig {
   suspendedScoreCap: number;
   /** Ascending lower-bound → tier (for non-provisional accounts). */
   tierBands: ReadonlyArray<{ min: number; tier: Exclude<ReputationTier, 'new'> }>;
+  /** Arbiter (adjudicator) reputation — same tier bands, separate composite. */
+  arbiter: {
+    /** Priority: overturned (accuracy) > acceptance > experience. */
+    weights: { accuracy: number; acceptance: number; experience: number };
+    /** `norm(rulings, target)` saturation point. */
+    rulingsTarget: number;
+    /** overturnedRate above this can never reach the `trusted` tier. */
+    trustedMaxOverturnedRate: number;
+    /** Below this many rulings the arbiter is provisional ("New"). */
+    minRulings: number;
+  };
 }
 
 export const REPUTATION_DEFAULTS: ReputationConfig = {
@@ -59,4 +70,10 @@ export const REPUTATION_DEFAULTS: ReputationConfig = {
     { min: 20, tier: 'bronze' },
     { min: 0, tier: 'untrusted' },
   ],
+  arbiter: {
+    weights: { accuracy: 0.6, acceptance: 0.25, experience: 0.15 },
+    rulingsTarget: 30,
+    trustedMaxOverturnedRate: 0.05,
+    minRulings: 3,
+  },
 };

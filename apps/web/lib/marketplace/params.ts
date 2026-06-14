@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { marketplace } from '@rivlayx/core';
-import { resolveTypeValues } from '@rivlayx/db';
+import { reputationTierValues, resolveTypeValues } from '@rivlayx/db';
 
 /**
  * Parse marketplace listing query params from a URLSearchParams (used by both
@@ -23,6 +23,7 @@ const ParamsSchema = z.object({
   category: z.enum(marketplace.categoryFacetValues).optional().catch(undefined),
   sport: z.enum(marketplace.SPORT_CATEGORIES).optional().catch(undefined),
   resolveType: z.enum(resolveTypeValues).optional().catch(undefined),
+  tier: z.enum(reputationTierValues).optional().catch(undefined),
   minStake: optionalNumber.catch(undefined),
   maxStake: optionalNumber.catch(undefined),
   page: optionalNumber.catch(undefined),
@@ -48,6 +49,7 @@ export function parseMarketplaceParams(
     category: parsed.category,
     sport: parsed.sport,
     resolveType: parsed.resolveType,
+    tier: parsed.tier,
     minStake: parsed.minStake,
     maxStake: parsed.maxStake,
     page: parsed.page,

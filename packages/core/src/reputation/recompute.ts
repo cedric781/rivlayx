@@ -1,7 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { reputationRecomputeQueue, userReputation, users } from '@rivlayx/db';
-import { gatherReputationSignals } from './signals';
-import { computeReputation } from './score';
+import { gatherArbiterSignals, gatherReputationSignals } from './signals';
+import { computeArbiterReputation, computeReputation } from './score';
 import type { ReputationResult } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,29 +14,29 @@ export async function recomputeUserReputation(
 ): Promise<ReputationResult> {
   const signals = await gatherReputationSignals(db, userId);
   const result = computeReputation(signals);
+  const arbiterSignals = await gatherArbiterSignals(db, userId);
+  const arbiter = computeArbiterReputation(arbiterSignals);
   const now = new Date();
+
+  const values = {
+    score: result.score,
+    tier: result.tier,
+    provisional: result.provisional,
+    components: result.components,
+    arbiterScore: arbiter.arbiterScore,
+    arbiterTier: arbiter.arbiterTier,
+    arbiterProvisional: arbiter.arbiterProvisional,
+    arbiterRulings: arbiter.arbiterRulings,
+    arbiterOverturnedRate: arbiter.overturnedRate.toFixed(4),
+    arbiterAcceptanceRate: arbiter.acceptanceRate.toFixed(4),
+    computedAt: now,
+    updatedAt: now,
+  };
+
   await db
     .insert(userReputation)
-    .values({
-      userId,
-      score: result.score,
-      tier: result.tier,
-      provisional: result.provisional,
-      components: result.components,
-      computedAt: now,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: userReputation.userId,
-      set: {
-        score: result.score,
-        tier: result.tier,
-        provisional: result.provisional,
-        components: result.components,
-        computedAt: now,
-        updatedAt: now,
-      },
-    });
+    .values({ userId, ...values })
+    .onConflictDoUpdate({ target: userReputation.userId, set: values });
   return result;
 }
 
