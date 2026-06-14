@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { userRoles, users, wallets, type NewUser } from '@rivlayx/db';
+import { profiles } from '@rivlayx/core';
 import type { VerifiedIdentity } from '@rivlayx/auth';
 
 export class UserBannedError extends Error {
@@ -56,10 +57,13 @@ export async function upsertUserFromIdentity(db: Db, identity: VerifiedIdentity)
     }
 
     const newId = randomUUID();
+    const preferred = identity.email.split('@')[0] ?? 'user';
+    const username = await profiles.generateUniqueUsername(tx, preferred);
     const newUser: NewUser = {
       id: newId,
       privyId: identity.externalId,
       email: identity.email,
+      username,
       status: 'active',
       mfaRequired: false,
     };

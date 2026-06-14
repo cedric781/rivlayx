@@ -1,6 +1,8 @@
+import { sql } from 'drizzle-orm';
 import {
   bigserial,
   boolean,
+  check,
   index,
   inet,
   jsonb,
@@ -41,6 +43,8 @@ export const users = authSchema.table(
     id: uuid('id').primaryKey().defaultRandom(),
     privyId: varchar('privy_id', { length: 128 }).notNull().unique(),
     email: varchar('email', { length: 320 }).notNull().unique(),
+    /** Public handle: lowercase, 3–20 chars, [a-z0-9_]. Unique. */
+    username: varchar('username', { length: 20 }).notNull().unique(),
     displayName: varchar('display_name', { length: 80 }),
     status: varchar('status', { length: 16, enum: userStatusValues }).notNull().default('active'),
     mfaRequired: boolean('mfa_required').notNull().default(false),
@@ -50,6 +54,7 @@ export const users = authSchema.table(
   (t) => ({
     emailIdx: index('users_email_idx').on(t.email),
     statusIdx: index('users_status_idx').on(t.status),
+    usernameFormat: check('users_username_format', sql`${t.username} ~ '^[a-z0-9_]{3,20}$'`),
   }),
 );
 

@@ -43,6 +43,7 @@ try {
       id: userId,
       privyId,
       email: bootstrapEmail,
+      username: 'admin',
       displayName: 'Bootstrap Super Admin',
       status: 'active',
       mfaRequired: true,
