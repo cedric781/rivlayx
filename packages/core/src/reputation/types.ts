@@ -64,6 +64,12 @@ export interface ArbiterSignals {
   rulings: number;
   /** Rulings later reversed by an upheld dispute. */
   overturned: number;
+  /** Distinct bet creators across ruled bets (anti self-assign farm). */
+  distinctCreators: number;
+  /** Distinct participants (creators + acceptors) across ruled bets (anti alt farm). */
+  distinctParticipants: number;
+  /** Ruled bets where the arbiter was platform-selected (vetted → bonus trust). */
+  platformRulings: number;
 }
 
 export interface ArbiterReputationResult {

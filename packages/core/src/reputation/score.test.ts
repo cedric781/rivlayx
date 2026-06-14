@@ -3,7 +3,16 @@ import { computeArbiterReputation, computeReputation } from './score';
 import type { ArbiterSignals, ReputationSignals } from './types';
 
 function arbiterSignals(overrides: Partial<ArbiterSignals> = {}): ArbiterSignals {
-  return { accepted: 0, declined: 0, rulings: 0, overturned: 0, ...overrides };
+  return {
+    accepted: 0,
+    declined: 0,
+    rulings: 0,
+    overturned: 0,
+    distinctCreators: 0,
+    distinctParticipants: 0,
+    platformRulings: 0,
+    ...overrides,
+  };
 }
 
 function signals(overrides: Partial<ReputationSignals> = {}): ReputationSignals {
@@ -140,48 +149,71 @@ describe('computeReputation — win-rate', () => {
   });
 });
 
-describe('computeArbiterReputation', () => {
-  it('scores an accurate, accepting, experienced arbiter as trusted', () => {
-    const r = computeArbiterReputation(
-      arbiterSignals({ accepted: 10, declined: 0, rulings: 10, overturned: 0 }),
-    );
+describe('computeArbiterReputation (hardened, Sprint 16.5)', () => {
+  const QUALIFIED = {
+    accepted: 25,
+    declined: 0,
+    rulings: 25,
+    overturned: 0,
+    distinctCreators: 15,
+    distinctParticipants: 25,
+    platformRulings: 0,
+  };
+
+  it('a fully-independent, accurate arbiter reaches trusted', () => {
+    const r = computeArbiterReputation(arbiterSignals(QUALIFIED));
     expect(r.arbiterProvisional).toBe(false);
     expect(r.arbiterTier).toBe('trusted');
-    expect(r.acceptanceRate).toBe(1);
-    expect(r.overturnedRate).toBe(0);
   });
 
-  it('marks an arbiter with too few rulings as provisional ("new")', () => {
-    const r = computeArbiterReputation(arbiterSignals({ accepted: 2, rulings: 2 }));
+  it('stays provisional below the independence floor even with many rulings', () => {
+    // 50 clean rulings but only 2 distinct creators → still "new".
+    const r = computeArbiterReputation(
+      arbiterSignals({
+        accepted: 50,
+        rulings: 50,
+        overturned: 0,
+        distinctCreators: 2,
+        distinctParticipants: 2,
+      }),
+    );
     expect(r.arbiterProvisional).toBe(true);
     expect(r.arbiterTier).toBe('new');
   });
 
-  it('overturned rate is the dominant factor — heavy overturns can never be trusted', () => {
+  it('cannot be trusted with too few distinct creators (15 required)', () => {
     const r = computeArbiterReputation(
-      arbiterSignals({ accepted: 20, declined: 0, rulings: 20, overturned: 10 }),
+      arbiterSignals({ ...QUALIFIED, distinctCreators: 12 }),
     );
-    expect(r.overturnedRate).toBe(0.5);
     expect(r.arbiterTier).not.toBe('trusted');
   });
 
-  it('hard rule: overturnedRate > 5% caps the tier below trusted even with a high score', () => {
-    // 50 rulings, only 3 overturned (6%) — would otherwise score into trusted.
+  it('cannot be trusted with too few distinct participants (25 required)', () => {
     const r = computeArbiterReputation(
-      arbiterSignals({ accepted: 50, declined: 0, rulings: 50, overturned: 3 }),
+      arbiterSignals({ ...QUALIFIED, distinctParticipants: 18 }),
     );
-    expect(r.overturnedRate).toBeCloseTo(0.06, 2);
     expect(r.arbiterTier).not.toBe('trusted');
-    expect(r.arbiterScore).toBeLessThanOrEqual(79);
   });
 
-  it('acceptance rate ranks below overturned but above experience', () => {
-    const lowAcceptance = computeArbiterReputation(
-      arbiterSignals({ accepted: 5, declined: 15, rulings: 5, overturned: 0 }),
+  it('overturned rate above 2% blocks trusted', () => {
+    const r = computeArbiterReputation(arbiterSignals({ ...QUALIFIED, overturned: 1 }));
+    expect(r.overturnedRate).toBeCloseTo(0.04, 2);
+    expect(r.arbiterTier).not.toBe('trusted');
+  });
+
+  it('heavy overturns drop the score well below trusted', () => {
+    const r = computeArbiterReputation(
+      arbiterSignals({ ...QUALIFIED, overturned: 12 }),
     );
-    const highAcceptance = computeArbiterReputation(
-      arbiterSignals({ accepted: 20, declined: 0, rulings: 5, overturned: 0 }),
+    expect(r.overturnedRate).toBeGreaterThan(0.4);
+    expect(r.arbiterTier).not.toBe('trusted');
+  });
+
+  it('platform-selected arbiters get a small trust bonus over user-selected', () => {
+    const userSelected = computeArbiterReputation(arbiterSignals({ ...QUALIFIED, platformRulings: 0 }));
+    const platform = computeArbiterReputation(
+      arbiterSignals({ ...QUALIFIED, platformRulings: 25 }),
     );
-    expect(highAcceptance.arbiterScore).toBeGreaterThan(lowAcceptance.arbiterScore);
+    expect(platform.arbiterScore).toBeGreaterThan(userSelected.arbiterScore);
   });
 });

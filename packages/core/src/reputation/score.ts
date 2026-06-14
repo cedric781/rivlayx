@@ -107,10 +107,18 @@ export function computeReputation(
 }
 
 /**
- * Pure arbiter (adjudicator) scoring. Priority is accuracy first (1 − overturned
- * rate), then acceptance rate, then experience (rulings). Hard rule: an arbiter
- * whose rulings are overturned more than `trustedMaxOverturnedRate` can never
- * reach the `trusted` tier, regardless of volume.
+ * Pure arbiter (adjudicator) scoring — hardened in Sprint 16.5.
+ *
+ * The continuous score blends accuracy (1 − overturned), acceptance,
+ * independence (distinct participants), experience (rulings) and a small
+ * platform-selected bonus. But tier is gated by **hard independence thresholds**
+ * so self-assigned alt-account farming cannot reach Gold/Trusted no matter how
+ * clean the record looks:
+ *   - provisional ("New") unless rulings ≥ 10 AND distinctCreators ≥ 10 AND
+ *     distinctParticipants ≥ 10
+ *   - Trusted requires rulings ≥ 25, distinctCreators ≥ 15,
+ *     distinctParticipants ≥ 25, overturnedRate ≤ 2%
+ *   - Gold requires rulings ≥ 10, distinctCreators ≥ 5, distinctParticipants ≥ 10
  */
 export function computeArbiterReputation(
   signals: ArbiterSignals,
@@ -123,22 +131,41 @@ export function computeArbiterReputation(
 
   const accuracy = 1 - overturnedRate;
   const experience = norm(signals.rulings, a.rulingsTarget);
+  const independence = norm(signals.distinctParticipants, a.participantsTarget);
+  const platformShare = signals.rulings > 0 ? signals.platformRulings / signals.rulings : 0;
+
   const positive =
     a.weights.accuracy * accuracy +
     a.weights.acceptance * acceptanceRate +
-    a.weights.experience * experience;
+    a.weights.independence * independence +
+    a.weights.experience * experience +
+    a.weights.platform * platformShare;
+  const arbiterScore = clamp(Math.round(100 * positive), 0, 100);
 
-  let arbiterScore = clamp(Math.round(100 * positive), 0, 100);
-  const arbiterProvisional = signals.rulings < a.minRulings;
+  const arbiterProvisional =
+    signals.rulings < a.provisional.minRulings ||
+    signals.distinctCreators < a.provisional.minDistinctCreators ||
+    signals.distinctParticipants < a.provisional.minDistinctParticipants;
 
-  let arbiterTier: ReputationTier = arbiterProvisional
-    ? 'new'
-    : tierForScore(arbiterScore, config);
+  const eligibleTrusted =
+    signals.rulings >= a.trusted.minRulings &&
+    signals.distinctCreators >= a.trusted.minDistinctCreators &&
+    signals.distinctParticipants >= a.trusted.minDistinctParticipants &&
+    overturnedRate <= a.trusted.maxOverturnedRate;
+  const eligibleGold =
+    signals.rulings >= a.gold.minRulings &&
+    signals.distinctCreators >= a.gold.minDistinctCreators &&
+    signals.distinctParticipants >= a.gold.minDistinctParticipants;
 
-  // Hard rule: frequently-overturned arbiters can never be Trusted.
-  if (arbiterTier === 'trusted' && overturnedRate > a.trustedMaxOverturnedRate) {
-    arbiterScore = Math.min(arbiterScore, 79);
-    arbiterTier = tierForScore(arbiterScore, config);
+  let arbiterTier: ReputationTier;
+  if (arbiterProvisional) {
+    arbiterTier = 'new';
+  } else {
+    let t = tierForScore(arbiterScore, config);
+    // Cap by hard independence/accuracy eligibility.
+    if (t === 'trusted' && !eligibleTrusted) t = 'gold';
+    if ((t === 'trusted' || t === 'gold') && !eligibleGold) t = 'silver';
+    arbiterTier = t;
   }
 
   return {

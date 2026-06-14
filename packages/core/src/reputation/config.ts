@@ -37,16 +37,35 @@ export interface ReputationConfig {
   suspendedScoreCap: number;
   /** Ascending lower-bound → tier (for non-provisional accounts). */
   tierBands: ReadonlyArray<{ min: number; tier: Exclude<ReputationTier, 'new'> }>;
-  /** Arbiter (adjudicator) reputation — same tier bands, separate composite. */
+  /**
+   * Arbiter (adjudicator) reputation — same tier bands, separate composite.
+   * Hardened in Sprint 16.5: independence (distinct creators/participants) gates
+   * the tier so self-assigned alt-account farming can't reach Gold/Trusted.
+   */
   arbiter: {
-    /** Priority: overturned (accuracy) > acceptance > experience. */
-    weights: { accuracy: number; acceptance: number; experience: number };
-    /** `norm(rulings, target)` saturation point. */
+    /** Sum to 1. Priority: accuracy > independence ≈ acceptance > experience > platform. */
+    weights: {
+      accuracy: number;
+      acceptance: number;
+      independence: number;
+      experience: number;
+      platform: number;
+    };
+    /** `norm(rulings, target)` saturation point (experience). */
     rulingsTarget: number;
-    /** overturnedRate above this can never reach the `trusted` tier. */
-    trustedMaxOverturnedRate: number;
-    /** Below this many rulings the arbiter is provisional ("New"). */
-    minRulings: number;
+    /** `norm(distinctParticipants, target)` saturation point (independence). */
+    participantsTarget: number;
+    /** Floor to leave provisional ("New") at all. */
+    provisional: { minRulings: number; minDistinctCreators: number; minDistinctParticipants: number };
+    /** Hard eligibility for the `trusted` tier. */
+    trusted: {
+      minRulings: number;
+      minDistinctCreators: number;
+      minDistinctParticipants: number;
+      maxOverturnedRate: number;
+    };
+    /** Hard eligibility for the `gold` tier. */
+    gold: { minRulings: number; minDistinctCreators: number; minDistinctParticipants: number };
   };
 }
 
@@ -71,9 +90,16 @@ export const REPUTATION_DEFAULTS: ReputationConfig = {
     { min: 0, tier: 'untrusted' },
   ],
   arbiter: {
-    weights: { accuracy: 0.6, acceptance: 0.25, experience: 0.15 },
+    weights: { accuracy: 0.55, acceptance: 0.15, independence: 0.15, experience: 0.1, platform: 0.05 },
     rulingsTarget: 30,
-    trustedMaxOverturnedRate: 0.05,
-    minRulings: 3,
+    participantsTarget: 25,
+    provisional: { minRulings: 10, minDistinctCreators: 10, minDistinctParticipants: 10 },
+    trusted: {
+      minRulings: 25,
+      minDistinctCreators: 15,
+      minDistinctParticipants: 25,
+      maxOverturnedRate: 0.02,
+    },
+    gold: { minRulings: 10, minDistinctCreators: 5, minDistinctParticipants: 10 },
   },
 };

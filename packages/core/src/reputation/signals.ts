@@ -134,6 +134,7 @@ export async function gatherArbiterSignals(
       accepted: sql<number>`count(*) filter (where ${betArbiters.status} = 'accepted')`,
       declined: sql<number>`count(*) filter (where ${betArbiters.status} = 'declined')`,
       rulings: sql<number>`count(*) filter (where ${betArbiters.decision} is not null)`,
+      platformRulings: sql<number>`count(*) filter (where ${betArbiters.decision} is not null and ${betArbiters.selectedBy} = 'platform')`,
     })
     .from(betArbiters)
     .where(eq(betArbiters.arbiterUserId, userId));
@@ -144,10 +145,31 @@ export async function gatherArbiterSignals(
     JOIN "app"."disputes" d ON d.bet_id = ba.bet_id AND d.status = 'upheld'
     WHERE ba.arbiter_user_id = ${userId} AND ba.decision IS NOT NULL`);
 
+  // Distinct creators + participants across the arbiter's RULED bets, excluding
+  // the arbiter themselves. This is the anti-collusion core: an alt-account farm
+  // has few distinct creators/participants no matter how many rulings it churns.
+  const distinctRes = await db.execute(sql`
+    SELECT
+      count(DISTINCT b.creator_user_id) FILTER (WHERE b.creator_user_id <> ${userId}) AS distinct_creators,
+      count(DISTINCT uid) FILTER (WHERE uid <> ${userId}) AS distinct_participants
+    FROM (
+      SELECT b.creator_user_id, b.creator_user_id AS uid
+      FROM "app"."bet_arbiters" ba JOIN "app"."bets" b ON b.id = ba.bet_id
+      WHERE ba.arbiter_user_id = ${userId} AND ba.decision IS NOT NULL
+      UNION ALL
+      SELECT b.creator_user_id, b.acceptor_user_id AS uid
+      FROM "app"."bet_arbiters" ba JOIN "app"."bets" b ON b.id = ba.bet_id
+      WHERE ba.arbiter_user_id = ${userId} AND ba.decision IS NOT NULL AND b.acceptor_user_id IS NOT NULL
+    ) b`);
+  const distinctRow = firstRow(distinctRes);
+
   return {
     accepted: Number(counts?.accepted ?? 0),
     declined: Number(counts?.declined ?? 0),
     rulings: Number(counts?.rulings ?? 0),
     overturned: Number(firstRow(overturnedRes)?.['overturned'] ?? 0),
+    distinctCreators: Number(distinctRow?.['distinct_creators'] ?? 0),
+    distinctParticipants: Number(distinctRow?.['distinct_participants'] ?? 0),
+    platformRulings: Number(counts?.platformRulings ?? 0),
   };
 }

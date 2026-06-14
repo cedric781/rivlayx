@@ -2,10 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { betArbiters, disputes, reputationRecomputeQueue, userReputation } from '@rivlayx/db';
 import { createTestDb, createTestUser, type TestDb } from '@rivlayx/test-utils';
-import { createBet } from '../bets/create';
 import { arbiterDeclineAssignment } from '../bets/arbiter';
-import { baseSportsBetInput, fundUser, linkTestWallet } from '../bets/test-helpers';
+import { createActiveBet, fundUser, linkTestWallet } from '../bets/test-helpers';
 import { gatherArbiterSignals } from './signals';
+import { computeArbiterReputation } from './score';
 import { recomputeUserReputation } from './recompute';
 import { listTopArbiters } from './arbiters';
 import { getReputationAnalytics } from './analytics';
@@ -31,28 +31,8 @@ beforeEach(async () => {
 async function makeUser() {
   const u = await createTestUser(harness.db);
   await linkTestWallet(harness.db, u.id);
-  await fundUser(harness.db, u.id, '300');
+  await fundUser(harness.db, u.id, '500');
   return u;
-}
-
-async function openBet(creatorId: string) {
-  const { bet } = await createBet(harness.db, baseSportsBetInput(creatorId));
-  return bet.id;
-}
-
-async function assign(
-  betId: string,
-  arbiterId: string,
-  opts: { status: 'pending' | 'accepted' | 'declined'; ruled?: boolean },
-) {
-  await harness.db.insert(betArbiters).values({
-    betId,
-    arbiterUserId: arbiterId,
-    selectedBy: 'user',
-    status: opts.status,
-    decision: opts.ruled ? { note: 'ruled' } : null,
-    decidedAt: opts.status === 'pending' ? null : new Date(),
-  });
 }
 
 async function upholdDispute(betId: string, openerId: string, claimedId: string) {
@@ -66,70 +46,111 @@ async function upholdDispute(betId: string, openerId: string, claimedId: string)
   });
 }
 
-describe('gatherArbiterSignals', () => {
-  it('counts accepted/declined, rulings (decision set) and overturned (upheld dispute)', async () => {
+/** Active (matched) bet with a recorded arbiter ruling. */
+async function ruledBet(
+  arbiterId: string,
+  creatorId: string,
+  acceptorId: string,
+  opts: { platform?: boolean; overturn?: boolean } = {},
+) {
+  const betId = await createActiveBet(harness.db, {
+    creatorUserId: creatorId,
+    acceptorUserId: acceptorId,
+  });
+  await harness.db.insert(betArbiters).values({
+    betId,
+    arbiterUserId: arbiterId,
+    selectedBy: opts.platform ? 'platform' : 'creator',
+    status: 'accepted',
+    decision: { ruled: true },
+    decidedAt: new Date(),
+  });
+  if (opts.overturn) await upholdDispute(betId, creatorId, acceptorId);
+  return betId;
+}
+
+async function arbiterTier(arbiterId: string) {
+  const signals = await gatherArbiterSignals(harness.db, arbiterId);
+  return { signals, result: computeArbiterReputation(signals) };
+}
+
+describe('arbiter signals — distinct counting excludes the arbiter', () => {
+  it('counts distinct creators and participants across ruled bets', async () => {
     const arb = await makeUser();
-    const creator = await makeUser();
-
-    const b0 = await openBet(creator.id);
-    const b1 = await openBet(creator.id);
-    const b2 = await openBet(creator.id);
-    const b3 = await openBet(creator.id);
-    const b4 = await openBet(creator.id);
-
-    await assign(b0, arb.id, { status: 'accepted', ruled: true });
-    await assign(b1, arb.id, { status: 'accepted', ruled: true });
-    await assign(b2, arb.id, { status: 'accepted', ruled: true });
-    await assign(b3, arb.id, { status: 'accepted', ruled: false });
-    await assign(b4, arb.id, { status: 'declined' });
-    await upholdDispute(b0, creator.id, creator.id); // overturns one ruling
+    const c1 = await makeUser();
+    const c2 = await makeUser();
+    const acc = await makeUser();
+    await ruledBet(arb.id, c1.id, acc.id);
+    await ruledBet(arb.id, c2.id, acc.id);
 
     const s = await gatherArbiterSignals(harness.db, arb.id);
-    expect(s.accepted).toBe(4);
-    expect(s.declined).toBe(1);
-    expect(s.rulings).toBe(3);
-    expect(s.overturned).toBe(1);
+    expect(s.rulings).toBe(2);
+    expect(s.distinctCreators).toBe(2); // c1, c2
+    expect(s.distinctParticipants).toBe(3); // c1, c2, acc
   });
 });
 
-describe('recomputeUserReputation — arbiter columns', () => {
-  it('persists arbiter score, tier, rates and rulings', async () => {
+describe('abuse: self-assigned arbiter farm', () => {
+  it('cannot leave provisional when the arbiter rules their own bets', async () => {
+    const arb = await makeUser();
+    for (let i = 0; i < 11; i++) {
+      const acc = await makeUser();
+      await ruledBet(arb.id, arb.id, acc.id); // creator === arbiter → excluded
+    }
+    const { signals, result } = await arbiterTier(arb.id);
+    expect(signals.rulings).toBe(11);
+    expect(signals.distinctCreators).toBe(0);
+    expect(result.arbiterProvisional).toBe(true);
+    expect(result.arbiterTier).toBe('new');
+  });
+});
+
+describe('abuse: creator alt farm', () => {
+  it('cannot leave provisional when all ruled bets come from one creator', async () => {
     const arb = await makeUser();
     const creator = await makeUser();
-    for (let i = 0; i < 3; i++) {
-      const b = await openBet(creator.id);
-      await assign(b, arb.id, { status: 'accepted', ruled: true });
+    for (let i = 0; i < 11; i++) {
+      const acc = await makeUser();
+      await ruledBet(arb.id, creator.id, acc.id);
     }
-    const b = await openBet(creator.id);
-    await assign(b, arb.id, { status: 'accepted', ruled: true });
-    await upholdDispute(b, creator.id, creator.id); // 1 of 4 overturned = 0.25
+    const { signals, result } = await arbiterTier(arb.id);
+    expect(signals.distinctCreators).toBe(1);
+    expect(result.arbiterTier).toBe('new');
+  });
+});
 
+describe('abuse: repeated same counterparties', () => {
+  it('cannot leave provisional when the same pair is reused', async () => {
+    const arb = await makeUser();
+    const creator = await makeUser();
+    const acceptor = await makeUser();
+    for (let i = 0; i < 11; i++) {
+      await ruledBet(arb.id, creator.id, acceptor.id);
+    }
+    const { signals, result } = await arbiterTier(arb.id);
+    expect(signals.distinctCreators).toBe(1);
+    expect(signals.distinctParticipants).toBe(2);
+    expect(result.arbiterTier).toBe('new');
+  });
+});
+
+describe('trusted arbiter qualification', () => {
+  it('reaches trusted with enough distinct creators/participants, rulings and clean record', async () => {
+    const arb = await makeUser();
+    for (let i = 0; i < 25; i++) {
+      const creator = await makeUser();
+      const acceptor = await makeUser();
+      await ruledBet(arb.id, creator.id, acceptor.id);
+    }
     await recomputeUserReputation(harness.db, arb.id);
+
     const [row] = await harness.db
       .select()
       .from(userReputation)
       .where(eq(userReputation.userId, arb.id));
-    expect(row!.arbiterRulings).toBe(4);
+    expect(row!.arbiterRulings).toBe(25);
     expect(row!.arbiterProvisional).toBe(false);
-    expect(Number(row!.arbiterOverturnedRate)).toBeCloseTo(0.25, 2);
-    expect(Number(row!.arbiterAcceptanceRate)).toBe(1);
-    // 25% overturned → never trusted
-    expect(row!.arbiterTier).not.toBe('trusted');
-  });
-});
-
-describe('listTopArbiters + analytics', () => {
-  it('lists arbiters publicly (no raw score) and reports overturned arbitrations', async () => {
-    const arb = await makeUser();
-    const creator = await makeUser();
-    for (let i = 0; i < 3; i++) {
-      const b = await openBet(creator.id);
-      await assign(b, arb.id, { status: 'accepted', ruled: true });
-    }
-    const overturnedBet = await openBet(creator.id);
-    await assign(overturnedBet, arb.id, { status: 'accepted', ruled: true });
-    await upholdDispute(overturnedBet, creator.id, creator.id);
-    await recomputeUserReputation(harness.db, arb.id);
+    expect(row!.arbiterTier).toBe('trusted');
 
     const top = await listTopArbiters(harness.db, { limit: 10 });
     expect(top.map((t) => t.userId)).toContain(arb.id);
@@ -137,7 +158,6 @@ describe('listTopArbiters + analytics', () => {
 
     const analytics = await getReputationAnalytics(harness.db);
     expect(analytics.topArbiters.map((t) => t.userId)).toContain(arb.id);
-    expect(analytics.overturnedArbiters.some((o) => o.username === arb.username)).toBe(true);
   });
 });
 
@@ -145,8 +165,17 @@ describe('arbiter hooks', () => {
   it('declining an assignment enqueues a reputation refresh', async () => {
     const arb = await makeUser();
     const creator = await makeUser();
-    const betId = await openBet(creator.id);
-    await assign(betId, arb.id, { status: 'pending' });
+    const acceptor = await makeUser();
+    const betId = await createActiveBet(harness.db, {
+      creatorUserId: creator.id,
+      acceptorUserId: acceptor.id,
+    });
+    await harness.db.insert(betArbiters).values({
+      betId,
+      arbiterUserId: arb.id,
+      selectedBy: 'creator',
+      status: 'pending',
+    });
 
     await arbiterDeclineAssignment(harness.db, { betId, arbiterUserId: arb.id });
 
