@@ -765,6 +765,74 @@ export const riskRecomputeQueue = appSchema.table(
   }),
 );
 
+// ───────────── operations / observability (Sprint 23) ─────────────
+// Internal source of truth for ops health. Read-only derived from existing
+// state; never changes deposits/escrow/settlement/payouts/balances. Alerting
+// output is a generic webhook (config-driven) — no vendor SDK / lock-in.
+
+export const cronRunStatusValues = ['ok', 'skipped', 'failed'] as const;
+export type CronRunStatus = (typeof cronRunStatusValues)[number];
+
+export const opsAlertTypeValues = [
+  'cron_stale',
+  'cron_failed',
+  'reconciliation_drift',
+  'reconciliation_stale',
+  'tvl_near_cap',
+  'freeze_active',
+  'health_degraded',
+] as const;
+export type OpsAlertType = (typeof opsAlertTypeValues)[number];
+
+export const opsSeverityValues = ['info', 'warning', 'critical'] as const;
+export type OpsSeverity = (typeof opsSeverityValues)[number];
+
+export const opsAlertStatusValues = ['open', 'acknowledged', 'resolved'] as const;
+export type OpsAlertStatus = (typeof opsAlertStatusValues)[number];
+
+/** One row per cron invocation — cron freshness/lag/failure source of truth. */
+export const cronRuns = appSchema.table(
+  'cron_runs',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    job: varchar('job', { length: 32 }).notNull(),
+    status: varchar('status', { length: 16, enum: cronRunStatusValues }).notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }).notNull().defaultNow(),
+    durationMs: integer('duration_ms').notNull().default(0),
+    details: jsonb('details'),
+  },
+  (t) => ({
+    jobIdx: index('cron_runs_job_idx').on(t.job, t.finishedAt),
+  }),
+);
+
+/** Operational alerts (internal). Advisory ops signal; never touches money. */
+export const opsAlerts = appSchema.table(
+  'ops_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: varchar('type', { length: 32, enum: opsAlertTypeValues }).notNull(),
+    severity: varchar('severity', { length: 16, enum: opsSeverityValues }).notNull(),
+    status: varchar('status', { length: 16, enum: opsAlertStatusValues }).notNull().default('open'),
+    /** Stable per-source key for dedup (e.g. the job name). */
+    dedupKey: varchar('dedup_key', { length: 64 }).notNull().default(''),
+    title: text('title').notNull(),
+    evidence: jsonb('evidence').notNull().default({}),
+    runbookUrl: text('runbook_url'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => ({
+    queueIdx: index('ops_alerts_queue_idx').on(t.status, t.severity, t.createdAt),
+    /** One open alert per (type, dedupKey). */
+    openDedup: uniqueIndex('ops_alerts_open_dedup')
+      .on(t.type, t.dedupKey)
+      .where(sql`${t.status} = 'open'`),
+  }),
+);
+
 // ───────────── inferred types ─────────────
 
 export type UserReputation = typeof userReputation.$inferSelect;
@@ -807,3 +875,7 @@ export type RiskEdge = typeof riskEdges.$inferSelect;
 export type NewRiskEdge = typeof riskEdges.$inferInsert;
 export type RiskRecomputeQueueRow = typeof riskRecomputeQueue.$inferSelect;
 export type NewRiskRecomputeQueueRow = typeof riskRecomputeQueue.$inferInsert;
+export type CronRun = typeof cronRuns.$inferSelect;
+export type NewCronRun = typeof cronRuns.$inferInsert;
+export type OpsAlert = typeof opsAlerts.$inferSelect;
+export type NewOpsAlert = typeof opsAlerts.$inferInsert;

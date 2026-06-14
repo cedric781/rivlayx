@@ -9,7 +9,7 @@ import {
   reconciliationRuns,
   users,
 } from '@rivlayx/db';
-import { deposits as coreDeposits } from '@rivlayx/core';
+import { deposits as coreDeposits, ops } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
 import { StatusBadge } from '@/components/status-badge';
@@ -68,6 +68,8 @@ export default async function AdminDashboardPage() {
   const currentTvl = await coreDeposits.computeCurrentTvl(db);
   const [openBets] = await db.select({ n: count() }).from(bets).where(eq(bets.status, 'OPEN'));
   const [activeBets] = await db.select({ n: count() }).from(bets).where(eq(bets.status, 'ACTIVE'));
+  const opsOverview = await ops.getOpsOverview(db);
+  const opsAlerts = await ops.listActiveOpsAlerts(db, { limit: 50 });
 
   return (
     <AdminShell user={user} roles={roles}>
@@ -133,6 +135,75 @@ export default async function AdminDashboardPage() {
       </section>
 
       <section style={{ marginTop: '2rem' }}>
+        <h2 style={{ fontSize: 18 }}>Cron health</h2>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {opsOverview.cronHealth.map((c) => (
+            <StatusBadge
+              key={c.job}
+              label={`${c.job}: ${
+                c.lastStatus === 'never'
+                  ? 'never run'
+                  : c.failing
+                    ? 'failing'
+                    : c.stale
+                      ? `stale (${c.lastRunAgeMinutes}m)`
+                      : `ok (${c.lastRunAgeMinutes}m)`
+              }`}
+              tone={c.failing || c.lastStatus === 'never' ? 'red' : c.stale ? 'yellow' : 'green'}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section style={{ marginTop: '2rem' }}>
+        <h2 style={{ fontSize: 18 }}>
+          Ops alerts{' '}
+          {opsOverview.criticalAlerts > 0 && (
+            <StatusBadge label={`${opsOverview.criticalAlerts} critical`} tone="red" />
+          )}
+        </h2>
+        {opsAlerts.length === 0 ? (
+          <p style={{ opacity: 0.6 }}>No active ops alerts.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Severity</th>
+                <th style={thStyle}>Type</th>
+                <th style={thStyle}>Title</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Runbook</th>
+              </tr>
+            </thead>
+            <tbody>
+              {opsAlerts.map((a) => (
+                <tr key={a.id}>
+                  <td style={tdStyle}>
+                    <StatusBadge
+                      label={a.severity}
+                      tone={a.severity === 'critical' ? 'red' : a.severity === 'warning' ? 'yellow' : 'green'}
+                    />
+                  </td>
+                  <td style={tdStyle}>{a.type}</td>
+                  <td style={tdStyle}>{a.title}</td>
+                  <td style={tdStyle}>{a.status}</td>
+                  <td style={tdStyle}>
+                    {a.runbookUrl ? (
+                      <a href={a.runbookUrl} style={{ color: '#5b8def' }}>
+                        runbook →
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: 18 }}>Freeze status</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {freezeRows.map((f) => (
@@ -147,6 +218,21 @@ export default async function AdminDashboardPage() {
     </AdminShell>
   );
 }
+
+const thStyle: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '0.5rem 0.6rem',
+  borderBottom: '1px solid #2c3036',
+  fontSize: 11,
+  opacity: 0.6,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+};
+const tdStyle: React.CSSProperties = {
+  padding: '0.5rem 0.6rem',
+  borderBottom: '1px solid #2c3036',
+  fontSize: 13,
+};
 
 function Card({ label, value, link }: { label: string; value: number | string; link?: string }) {
   return (

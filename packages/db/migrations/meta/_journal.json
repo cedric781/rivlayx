@@ -92,6 +92,13 @@
       "when": 1781450308339,
       "tag": "0012_risk_engine",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781460431434,
+      "tag": "0013_ops_observability",
+      "breakpoints": true
     }
   ]
 }

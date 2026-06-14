@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cron, reputation } from '@rivlayx/core';
+import { cron, ops, reputation } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { requireCron } from '@/lib/auth/require-cron';
 
@@ -19,8 +19,10 @@ export async function GET(request: Request) {
 
   const full = new URL(request.url).searchParams.get('full') === '1';
   const db = getDb();
-  const locked = await cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.reputation, async () =>
-    reputation.runReputationCycle(db, { full }),
+  const locked = await ops.recordCronRun(db, 'reputation', () =>
+    cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.reputation, async () =>
+      reputation.runReputationCycle(db, { full }),
+    ),
   );
 
   if (!locked.ran) return NextResponse.json({ skipped: true, reason: 'lock_held' });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bets, cron } from '@rivlayx/core';
+import { bets, cron, ops } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { requireCron } from '@/lib/auth/require-cron';
 import { buildProviderRegistry } from '@/lib/cron/provider-registry';
@@ -18,8 +18,10 @@ export async function GET(request: Request) {
 
   const db = getDb();
   const registry = buildProviderRegistry();
-  const locked = await cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.autoResolve, async () =>
-    bets.runAutoResolveCycle(db, registry),
+  const locked = await ops.recordCronRun(db, 'auto-resolve', () =>
+    cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.autoResolve, async () =>
+      bets.runAutoResolveCycle(db, registry),
+    ),
   );
 
   if (!locked.ran) return NextResponse.json({ skipped: true, reason: 'lock_held' });

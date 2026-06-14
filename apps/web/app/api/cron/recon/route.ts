@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ledger, cron } from '@rivlayx/core';
+import { ledger, cron, ops } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { requireCron } from '@/lib/auth/require-cron';
 
@@ -20,15 +20,17 @@ export async function GET(request: Request) {
   if (!auth.ok) return auth.response;
 
   const db = getDb();
-  const locked = await cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.recon, async () => {
-    const result = await ledger.runReconciliation(db);
-    if (result.status === 'halt' || result.status === 'drift') {
-      const reason = `auto-freeze: reconciliation ${result.status} (drift ${result.driftUsdc})`;
-      await ledger.setFreeze(db, 'settlements', true, { actorUserId: null, reason });
-      await ledger.setFreeze(db, 'withdrawals', true, { actorUserId: null, reason });
-    }
-    return result;
-  });
+  const locked = await ops.recordCronRun(db, 'recon', () =>
+    cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.recon, async () => {
+      const result = await ledger.runReconciliation(db);
+      if (result.status === 'halt' || result.status === 'drift') {
+        const reason = `auto-freeze: reconciliation ${result.status} (drift ${result.driftUsdc})`;
+        await ledger.setFreeze(db, 'settlements', true, { actorUserId: null, reason });
+        await ledger.setFreeze(db, 'withdrawals', true, { actorUserId: null, reason });
+      }
+      return result;
+    }),
+  );
 
   if (!locked.ran) return NextResponse.json({ skipped: true, reason: 'lock_held' });
   const result = locked.result!;
