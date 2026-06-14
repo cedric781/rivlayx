@@ -5,6 +5,8 @@
     { "path": "/api/cron/settle", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/recon", "schedule": "0 * * * *" },
     { "path": "/api/cron/reputation", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/reputation?full=1", "schedule": "0 3 * * *" }
+    { "path": "/api/cron/reputation?full=1", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/risk", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/risk?full=1", "schedule": "0 4 * * *" }
   ]
 }

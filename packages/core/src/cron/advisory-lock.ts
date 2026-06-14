@@ -14,6 +14,7 @@ export const CRON_LOCK_KEYS = {
   recon: 920_002,
   autoResolve: 920_003,
   reputation: 920_004,
+  risk: 920_005,
 } as const;
 
 /**

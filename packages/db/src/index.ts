@@ -62,6 +62,15 @@ export {
   reputationTierValues,
   reputationRecomputeQueue,
   reputationRefreshReasonValues,
+  riskScores,
+  riskAlerts,
+  riskEdges,
+  riskRecomputeQueue,
+  riskBandValues,
+  riskAlertTypeValues,
+  riskAlertStatusValues,
+  riskSubjectTypeValues,
+  riskRefreshReasonValues,
 } from './schema/app';
 export type {
   BetStatus,
@@ -111,6 +120,19 @@ export type {
   NewUserReputation,
   ReputationRecomputeQueueRow,
   NewReputationRecomputeQueueRow,
+  RiskBand,
+  RiskAlertType,
+  RiskAlertStatus,
+  RiskSubjectType,
+  RiskRefreshReason,
+  RiskScore,
+  NewRiskScore,
+  RiskAlert,
+  NewRiskAlert,
+  RiskEdge,
+  NewRiskEdge,
+  RiskRecomputeQueueRow,
+  NewRiskRecomputeQueueRow,
 } from './schema/app';
 
 // financial schema

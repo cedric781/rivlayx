@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -626,6 +627,144 @@ export const reputationRecomputeQueue = appSchema.table(
   }),
 );
 
+// ───────────── risk engine (Sprint 17) — shadow mode, read-only ─────────────
+// Observation/detection only. These tables are written exclusively by the risk
+// engine; nothing here influences deposits, escrow, settlement or payouts.
+
+export const riskBandValues = ['none', 'low', 'elevated', 'high', 'critical'] as const;
+export type RiskBand = (typeof riskBandValues)[number];
+
+export const riskAlertTypeValues = [
+  'ring',
+  'sybil',
+  'wash_trade',
+  'dispute_abuse',
+  'velocity',
+  'high_risk_user',
+] as const;
+export type RiskAlertType = (typeof riskAlertTypeValues)[number];
+
+export const riskAlertStatusValues = ['open', 'triaged', 'dismissed', 'actioned'] as const;
+export type RiskAlertStatus = (typeof riskAlertStatusValues)[number];
+
+export const riskSubjectTypeValues = ['user', 'cluster', 'pair'] as const;
+export type RiskSubjectType = (typeof riskSubjectTypeValues)[number];
+
+export const riskRefreshReasonValues = [
+  'bet_activity',
+  'dispute_activity',
+  'deposit_activity',
+  'full_sweep',
+  'backfill',
+] as const;
+export type RiskRefreshReason = (typeof riskRefreshReasonValues)[number];
+
+/** Per-user composite risk score + sub-scores. Internal — never public. */
+export const riskScores = appSchema.table(
+  'risk_scores',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** 0–100 composite. Higher = more suspicious. Advisory only. */
+    riskScore: integer('risk_score').notNull().default(0),
+    riskBand: varchar('risk_band', { length: 16, enum: riskBandValues }).notNull().default('none'),
+    ringScore: integer('ring_score').notNull().default(0),
+    arbiterConcentrationScore: integer('arbiter_concentration_score').notNull().default(0),
+    concentrationScore: integer('concentration_score').notNull().default(0),
+    washScore: integer('wash_score').notNull().default(0),
+    abuseScore: integer('abuse_score').notNull().default(0),
+    velocityScore: integer('velocity_score').notNull().default(0),
+    /** Supporting signal only — never a primary factor (capped + gated). */
+    fundingOverlapScore: integer('funding_overlap_score').notNull().default(0),
+    ringClusterId: uuid('ring_cluster_id'),
+    sybilClusterId: uuid('sybil_cluster_id'),
+    /** Raw inputs + sub-signals for analyst explainability. */
+    components: jsonb('components').notNull().default({}),
+    computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    scoreIdx: index('risk_scores_score_idx').on(t.riskScore),
+    bandIdx: index('risk_scores_band_idx').on(t.riskBand),
+    ringClusterIdx: index('risk_scores_ring_cluster_idx').on(t.ringClusterId),
+    scoreRange: check('risk_scores_score_range', sql`${t.riskScore} >= 0 AND ${t.riskScore} <= 100`),
+  }),
+);
+
+/** Advisory fraud alerts for analyst review. No automatic action. */
+export const riskAlerts = appSchema.table(
+  'risk_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    subjectType: varchar('subject_type', { length: 16, enum: riskSubjectTypeValues }).notNull(),
+    /** user_id, cluster_id or canonical pair key. */
+    subjectId: text('subject_id').notNull(),
+    type: varchar('type', { length: 32, enum: riskAlertTypeValues }).notNull(),
+    severity: varchar('severity', { length: 16, enum: riskBandValues }).notNull(),
+    score: integer('score').notNull().default(0),
+    evidence: jsonb('evidence').notNull().default({}),
+    status: varchar('status', { length: 16, enum: riskAlertStatusValues }).notNull().default('open'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedByUserId: uuid('resolved_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => ({
+    queueIdx: index('risk_alerts_queue_idx').on(t.status, t.severity, t.createdAt),
+    subjectIdx: index('risk_alerts_subject_idx').on(t.subjectType, t.subjectId),
+    scoreRange: check('risk_alerts_score_range', sql`${t.score} >= 0 AND ${t.score} <= 100`),
+    /** One open alert per (subject, type) — dedup on refresh. */
+    openDedup: uniqueIndex('risk_alerts_open_dedup')
+      .on(t.subjectType, t.subjectId, t.type)
+      .where(sql`${t.status} = 'open'`),
+  }),
+);
+
+/** Counterparty graph cache (canonical user_a < user_b). Read-only derived. */
+export const riskEdges = appSchema.table(
+  'risk_edges',
+  {
+    userA: uuid('user_a')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    userB: uuid('user_b')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    sharedBets: integer('shared_bets').notNull().default(0),
+    sharedVolumeUsdc: numeric('shared_volume_usdc', { precision: 20, scale: 6 })
+      .notNull()
+      .default('0'),
+    sharedArbiterBets: integer('shared_arbiter_bets').notNull().default(0),
+    lastBetAt: timestamp('last_bet_at', { withTimezone: true }),
+    clusterId: uuid('cluster_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userA, t.userB] }),
+    userAIdx: index('risk_edges_user_a_idx').on(t.userA),
+    userBIdx: index('risk_edges_user_b_idx').on(t.userB),
+    clusterIdx: index('risk_edges_cluster_idx').on(t.clusterId),
+  }),
+);
+
+/** Work queue populated by the scanner (NOT by money-path transactions). */
+export const riskRecomputeQueue = appSchema.table(
+  'risk_recompute_queue',
+  {
+    subjectType: varchar('subject_type', { length: 16, enum: riskSubjectTypeValues }).notNull(),
+    subjectId: text('subject_id').notNull(),
+    reason: varchar('reason', { length: 32, enum: riskRefreshReasonValues }).notNull(),
+    enqueuedAt: timestamp('enqueued_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.subjectType, t.subjectId] }),
+    enqueuedIdx: index('risk_queue_enqueued_idx').on(t.enqueuedAt),
+  }),
+);
+
 // ───────────── inferred types ─────────────
 
 export type UserReputation = typeof userReputation.$inferSelect;
@@ -660,3 +799,11 @@ export type Payout = typeof payouts.$inferSelect;
 export type NewPayout = typeof payouts.$inferInsert;
 export type PayoutAttempt = typeof payoutAttempts.$inferSelect;
 export type NewPayoutAttempt = typeof payoutAttempts.$inferInsert;
+export type RiskScore = typeof riskScores.$inferSelect;
+export type NewRiskScore = typeof riskScores.$inferInsert;
+export type RiskAlert = typeof riskAlerts.$inferSelect;
+export type NewRiskAlert = typeof riskAlerts.$inferInsert;
+export type RiskEdge = typeof riskEdges.$inferSelect;
+export type NewRiskEdge = typeof riskEdges.$inferInsert;
+export type RiskRecomputeQueueRow = typeof riskRecomputeQueue.$inferSelect;
+export type NewRiskRecomputeQueueRow = typeof riskRecomputeQueue.$inferInsert;

@@ -15,6 +15,7 @@ const navItems: Array<{ href: string; label: string; permission: AdminPermission
   { href: '/bets', label: 'Bets', permission: 'viewBets' },
   { href: '/users', label: 'Users', permission: 'viewUsers' },
   { href: '/reputation', label: 'Reputation', permission: 'viewUsers' },
+  { href: '/risk', label: 'Risk', permission: 'viewUsers' },
   { href: '/evidence', label: 'Evidence', permission: 'viewEvidence' },
   { href: '/finance', label: 'Finance', permission: 'viewLedger' },
   { href: '/auto-resolve', label: 'Auto resolve', permission: 'viewBets' },
