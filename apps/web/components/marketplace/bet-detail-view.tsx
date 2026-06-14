@@ -7,6 +7,14 @@ import {
   humanizeResolveType,
 } from '@/lib/marketplace/format';
 import { ShareLink } from './share-link';
+import { StatusBadge } from './status-badge';
+import { AcceptBetCard } from './accept-bet-card';
+
+/** Signed-in viewer context, or `null` for anonymous visitors. */
+export interface BetDetailViewer {
+  userId: string;
+  availableUsdc: string;
+}
 
 const card: React.CSSProperties = {
   border: '1px solid #e5e7eb',
@@ -17,8 +25,16 @@ const card: React.CSSProperties = {
 };
 const label: React.CSSProperties = { fontSize: 12, opacity: 0.55, textTransform: 'uppercase', letterSpacing: 0.4 };
 
-export function BetDetailView({ bet }: { bet: marketplace.MarketplaceBetDetail }) {
+export function BetDetailView({
+  bet,
+  viewer = null,
+}: {
+  bet: marketplace.MarketplaceBetDetail;
+  viewer?: BetDetailViewer | null;
+}) {
   const isOpen = bet.status === 'OPEN';
+  const expired = bet.expiresAt ? new Date(bet.expiresAt).getTime() <= Date.now() : false;
+  const isCreator = viewer?.userId === bet.creatorUserId;
   return (
     <main style={{ maxWidth: 760, margin: '2rem auto', padding: '0 1rem' }}>
       <Link href="/bets" style={{ color: '#5b8def', fontSize: 13 }}>
@@ -38,7 +54,7 @@ export function BetDetailView({ bet }: { bet: marketplace.MarketplaceBetDetail }
         >
           {humanizeCategory(bet.category)}
         </span>
-        <span style={{ fontSize: 12, opacity: 0.6 }}>{bet.status}</span>
+        <StatusBadge status={bet.status} />
       </div>
       <h1 style={{ margin: '0 0 0.25rem', fontSize: 24 }}>{bet.title}</h1>
       {bet.description ? <p style={{ marginTop: 0, opacity: 0.8 }}>{bet.description}</p> : null}
@@ -109,7 +125,13 @@ export function BetDetailView({ bet }: { bet: marketplace.MarketplaceBetDetail }
         <ShareLink sharePath={bet.sharePath} />
       </div>
 
-      {isOpen ? (
+      {isOpen ? renderAcceptSection() : null}
+    </main>
+  );
+
+  function renderAcceptSection() {
+    if (!viewer) {
+      return (
         <Link
           href="/login"
           style={{
@@ -124,7 +146,31 @@ export function BetDetailView({ bet }: { bet: marketplace.MarketplaceBetDetail }
         >
           Sign in to accept →
         </Link>
-      ) : null}
-    </main>
-  );
+      );
+    }
+    if (isCreator) {
+      return (
+        <p style={{ fontSize: 14, opacity: 0.7 }}>
+          This is your bet — waiting for someone to accept the open side.
+        </p>
+      );
+    }
+    if (expired) {
+      return (
+        <p style={{ fontSize: 14, color: '#b91c1c' }}>
+          The open window for this bet has expired and it can no longer be accepted.
+        </p>
+      );
+    }
+    return (
+      <AcceptBetCard
+        betId={bet.id}
+        stakeRequiredUsdc={bet.stakePerSideUsdc}
+        potUsdc={bet.potUsdc}
+        creatorSide={bet.creatorSide}
+        availableUsdc={viewer.availableUsdc}
+        templateSides={bet.templateSides}
+      />
+    );
+  }
 }

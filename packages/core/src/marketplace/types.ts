@@ -111,6 +111,16 @@ export interface MarketplaceBetDetail {
   arbiterType: ArbiterType;
   /** Human-readable resolution method derived from resolveType + arbiterType. */
   resolutionMethod: string;
+  /** Creator's user id — used to stop the creator accepting their own bet. */
+  creatorUserId: string;
+  /** Side label the creator took. The acceptor must pick a different side. */
+  creatorSide: string;
+  /**
+   * Allowed side labels from the bet's template (`sides_schema`), or `null` for
+   * free-form / template-less bets. Drives the accept side selector: exactly one
+   * remaining side ⇒ auto-select; more (or null) ⇒ show a selector.
+   */
+  templateSides: string[] | null;
   stakePerSideUsdc: string;
   potUsdc: string;
   createdAt: Date;

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { bets, betParticipants } from '@rivlayx/db';
+import { bets, betParticipants, betAuditLog, betEvents } from '@rivlayx/db';
 import { createTestDb, createTestUser, type TestDb } from '@rivlayx/test-utils';
 import { getBalance } from '../ledger/balances';
 import { setFreeze } from '../ledger/freeze';
@@ -88,6 +88,33 @@ describe('acceptBet — happy path', () => {
       .where(eq(betParticipants.betId, bet.id));
     expect(participants.map((p) => p.role).sort()).toEqual(['acceptor', 'creator']);
   });
+
+  it('writes the OPEN → ACTIVE audit log + accepted/activated events', async () => {
+    const { bet } = await setupOpenBet();
+    const acceptor = await createTestUser(harness.db);
+    await linkTestWallet(harness.db, acceptor.id);
+    await fundUser(harness.db, acceptor.id, '50');
+
+    await acceptBet(harness.db, {
+      betId: bet.id,
+      acceptorUserId: acceptor.id,
+      acceptorSide: 'away',
+    });
+
+    const auditRows = await harness.db
+      .select()
+      .from(betAuditLog)
+      .where(eq(betAuditLog.betId, bet.id));
+    const activeAudit = auditRows.filter(
+      (r) => r.fromStatus === 'OPEN' && r.toStatus === 'ACTIVE',
+    );
+    expect(activeAudit.length).toBeGreaterThanOrEqual(1);
+
+    const eventRows = await harness.db.select().from(betEvents).where(eq(betEvents.betId, bet.id));
+    const eventTypes = eventRows.map((e) => e.eventType);
+    expect(eventTypes).toContain('bet_accepted');
+    expect(eventTypes).toContain('bet_activated');
+  });
 });
 
 describe('acceptBet — failure scenarios', () => {
@@ -158,6 +185,36 @@ describe('acceptBet — failure scenarios', () => {
     await expect(
       acceptBet(harness.db, { betId: bet.id, acceptorUserId: acceptor.id, acceptorSide: 'away' }),
     ).rejects.toThrow(/WRONG_STATUS|not OPEN/);
+  });
+
+  it('rejects when the open window has expired', async () => {
+    const { bet } = await setupOpenBet();
+    // Force the open window into the past.
+    await harness.db
+      .update(bets)
+      .set({ expiresAt: new Date(Date.now() - 60_000) })
+      .where(eq(bets.id, bet.id));
+    const acceptor = await createTestUser(harness.db);
+    await linkTestWallet(harness.db, acceptor.id);
+    await fundUser(harness.db, acceptor.id, '50');
+    await expect(
+      acceptBet(harness.db, { betId: bet.id, acceptorUserId: acceptor.id, acceptorSide: 'away' }),
+    ).rejects.toThrow(/EXPIRED_WINDOW|expired/);
+  });
+
+  it('rejects a second accept once the bet is already taken', async () => {
+    const { bet } = await setupOpenBet();
+    const first = await createTestUser(harness.db);
+    await linkTestWallet(harness.db, first.id);
+    await fundUser(harness.db, first.id, '50');
+    await acceptBet(harness.db, { betId: bet.id, acceptorUserId: first.id, acceptorSide: 'away' });
+
+    const second = await createTestUser(harness.db);
+    await linkTestWallet(harness.db, second.id);
+    await fundUser(harness.db, second.id, '50');
+    await expect(
+      acceptBet(harness.db, { betId: bet.id, acceptorUserId: second.id, acceptorSide: 'away' }),
+    ).rejects.toThrow(/WRONG_STATUS|ALREADY_ACCEPTED|not OPEN/);
   });
 
   it('rejects when bet not found', async () => {

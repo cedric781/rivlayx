@@ -78,6 +78,9 @@ export async function getMarketplaceBet(
       resolveType: bets.resolveType,
       arbiterType: bets.arbiterType,
       resolveSource: bets.resolveSource,
+      creatorUserId: bets.creatorUserId,
+      creatorSide: bets.creatorSide,
+      templateSides: betTemplates.sidesSchema,
       stakePerSideUsdc: bets.stakePerSideUsdc,
       createdAt: bets.createdAt,
       expiresAt: bets.expiresAt,
@@ -121,6 +124,13 @@ export async function getMarketplaceBet(
     resolveType: row.resolveType,
     arbiterType: row.arbiterType,
     resolutionMethod: resolutionMethod(row.resolveType, row.arbiterType, row.resolveSource),
+    creatorUserId: row.creatorUserId,
+    creatorSide: row.creatorSide,
+    templateSides:
+      Array.isArray(row.templateSides) &&
+      row.templateSides.every((s: unknown) => typeof s === 'string')
+        ? (row.templateSides as string[])
+        : null,
     stakePerSideUsdc: row.stakePerSideUsdc,
     potUsdc: potUsdc(row.stakePerSideUsdc),
     createdAt: row.createdAt,
