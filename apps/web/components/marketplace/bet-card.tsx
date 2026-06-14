@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { marketplace } from '@rivlayx/core';
 import { formatExpiry, formatUsdc, humanizeCategory, humanizeResolveType } from '@/lib/marketplace/format';
+import { ReputationBadge } from '@/components/reputation/reputation-badge';
 
 const chip: React.CSSProperties = {
   display: 'inline-block',
@@ -27,7 +28,10 @@ export function BetCard({ bet }: { bet: marketplace.MarketplaceListItem }) {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-        <span style={chip}>{humanizeCategory(bet.category)}</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={chip}>{humanizeCategory(bet.category)}</span>
+          <ReputationBadge tier={bet.creatorTier} provisional={bet.creatorProvisional} size="sm" />
+        </div>
         <span style={{ fontSize: 12, opacity: 0.6 }}>{formatExpiry(bet.expiresAt)}</span>
       </div>
 

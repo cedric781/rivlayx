@@ -1,7 +1,21 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { sessions, users, type User, type UserStatus } from '@rivlayx/db';
+import {
+  sessions,
+  users,
+  type ReputationRefreshReason,
+  type User,
+  type UserStatus,
+} from '@rivlayx/db';
 import type { LedgerDb } from '../ledger/types';
+import { enqueueReputationRefresh } from '../reputation/queue';
 import { logAdminAction, type AdminAuditEntry } from './audit-log';
+
+/** Map a moderation action to the reputation refresh reason. */
+function reputationReasonFor(action: string): ReputationRefreshReason {
+  if (action === 'user.suspend') return 'suspension';
+  if (action === 'user.ban') return 'ban';
+  return 'reinstate'; // user.unsuspend / user.unban
+}
 
 export class ModerationError extends Error {
   public readonly code: 'NOT_FOUND' | 'INVALID_TRANSITION' | 'SELF_MODERATION';
@@ -111,6 +125,9 @@ async function doStatusTransition(
       userAgent: input.userAgent ?? null,
     };
     await logAdminAction(tx, auditEntry);
+
+    // Transactional outbox: status change affects the score's status modifier.
+    await enqueueReputationRefresh(tx, input.userId, reputationReasonFor(action));
 
     return { user: updated };
   });

@@ -1,4 +1,4 @@
-import type { BetStatus, ResolveType, ArbiterType, BetType } from '@rivlayx/db';
+import type { BetStatus, ResolveType, ArbiterType, BetType, ReputationTier } from '@rivlayx/db';
 
 /**
  * Marketplace is a read-only projection over the bet engine. It never mutates
@@ -73,6 +73,9 @@ export interface MarketplaceListItem {
   potUsdc: string;
   createdAt: Date;
   expiresAt: Date | null;
+  /** Creator's reputation tier (badge only; never a score). */
+  creatorTier: ReputationTier;
+  creatorProvisional: boolean;
   /** Preferred share path: `/b/<shortCode>`. */
   sharePath: string;
 }
@@ -128,6 +131,9 @@ export interface MarketplaceBetDetail {
   eventAt: Date | null;
   rules: MarketplaceBetRule[];
   participants: MarketplaceParticipant[];
+  /** Creator's reputation tier (badge only; never a score). */
+  creatorTier: ReputationTier;
+  creatorProvisional: boolean;
   sharePath: string;
 }
 

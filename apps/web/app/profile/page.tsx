@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { requireSession } from '@rivlayx/auth/next';
-import { profiles } from '@rivlayx/core';
+import { profiles, reputation } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { parseProfileParams } from '@/lib/profile/params';
 import { ProfileView } from '@/components/profile/profile-view';
@@ -23,12 +23,21 @@ export default async function ProfilePage({
   if (!summary) notFound();
 
   const params = parseProfileParams(await searchParams);
-  const [stats, bets] = await Promise.all([
+  const [stats, bets, rep] = await Promise.all([
     profiles.getProfileStats(db, user.id),
     profiles.listProfileBets(db, user.id, params),
+    reputation.getReputation(db, user.id),
   ]);
 
   return (
-    <ProfileView user={summary} stats={stats} bets={bets} params={params} basePath="/profile" isOwn />
+    <ProfileView
+      user={summary}
+      rep={rep}
+      stats={stats}
+      bets={bets}
+      params={params}
+      basePath="/profile"
+      isOwn
+    />
   );
 }

@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { bets, betEvents, settlements, type Bet, type Settlement } from '@rivlayx/db';
 import { BetError } from './errors';
 import { recordBetTransition } from './audit';
+import { enqueueReputationRefresh } from '../reputation/queue';
 import { postLedgerTxnIn } from '../ledger/post';
 import type { BetDb } from './types';
 import type { LedgerEntryInput } from '../ledger/types';
@@ -316,6 +317,11 @@ export async function settleBet(db: BetDb, input: SettleBetInput): Promise<Settl
       ]);
     }
     // Draw path emits no bet_win/bet_loss/platform_fee — bet_settled covers it.
+
+    // Transactional outbox: schedule a reputation refresh for both participants.
+    // Enqueue only (no scoring) so the money-path never depends on reputation.
+    await enqueueReputationRefresh(tx, creatorUserId, 'settlement');
+    await enqueueReputationRefresh(tx, acceptorUserId, 'settlement');
 
     return { kind: 'settled', settlement, bet: settledUpdate[0]! };
   });

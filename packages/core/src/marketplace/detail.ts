@@ -1,5 +1,12 @@
 import { asc, eq } from 'drizzle-orm';
-import { bets, betParticipants, betRules, betShareLinks, betTemplates } from '@rivlayx/db';
+import {
+  bets,
+  betParticipants,
+  betRules,
+  betShareLinks,
+  betTemplates,
+  userReputation,
+} from '@rivlayx/db';
 import type { ArbiterType, ResolveType } from '@rivlayx/db';
 import { potUsdc } from './query';
 import type { MarketplaceBetDetail } from './types';
@@ -81,6 +88,8 @@ export async function getMarketplaceBet(
       creatorUserId: bets.creatorUserId,
       creatorSide: bets.creatorSide,
       templateSides: betTemplates.sidesSchema,
+      creatorTier: userReputation.tier,
+      creatorProvisional: userReputation.provisional,
       stakePerSideUsdc: bets.stakePerSideUsdc,
       createdAt: bets.createdAt,
       expiresAt: bets.expiresAt,
@@ -88,6 +97,7 @@ export async function getMarketplaceBet(
     })
     .from(bets)
     .leftJoin(betTemplates, eq(betTemplates.id, bets.templateId))
+    .leftJoin(userReputation, eq(userReputation.userId, bets.creatorUserId))
     .where(eq(bets.id, betId))
     .limit(1);
 
@@ -148,6 +158,8 @@ export async function getMarketplaceBet(
         stakeLockedUsdc: p.stakeLockedUsdc,
       }),
     ),
+    creatorTier: row.creatorTier ?? 'new',
+    creatorProvisional: row.creatorProvisional ?? true,
     sharePath: `/b/${row.shortCode}`,
   };
 }

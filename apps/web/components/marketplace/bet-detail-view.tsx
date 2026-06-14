@@ -9,6 +9,7 @@ import {
 import { ShareLink } from './share-link';
 import { StatusBadge } from './status-badge';
 import { AcceptBetCard } from './accept-bet-card';
+import { ReputationBadge } from '@/components/reputation/reputation-badge';
 
 /** Signed-in viewer context, or `null` for anonymous visitors. */
 export interface BetDetailViewer {
@@ -55,6 +56,10 @@ export function BetDetailView({
           {humanizeCategory(bet.category)}
         </span>
         <StatusBadge status={bet.status} />
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, opacity: 0.7 }}>
+          Creator
+          <ReputationBadge tier={bet.creatorTier} provisional={bet.creatorProvisional} size="sm" />
+        </span>
       </div>
       <h1 style={{ margin: '0 0 0.25rem', fontSize: 24 }}>{bet.title}</h1>
       {bet.description ? <p style={{ marginTop: 0, opacity: 0.8 }}>{bet.description}</p> : null}

@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { profiles } from '@rivlayx/core';
+import { profiles, reputation } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { getOptionalUser } from '@/lib/auth/optional-session';
 import { parseProfileParams } from '@/lib/profile/params';
@@ -30,15 +30,17 @@ export default async function PublicProfilePage({
   if (!summary) notFound();
 
   const parsed = parseProfileParams(await searchParams);
-  const [stats, bets, viewer] = await Promise.all([
+  const [stats, bets, rep, viewer] = await Promise.all([
     profiles.getProfileStats(db, summary.id),
     profiles.listProfileBets(db, summary.id, parsed),
+    reputation.getReputation(db, summary.id),
     getOptionalUser(),
   ]);
 
   return (
     <ProfileView
       user={summary}
+      rep={rep}
       stats={stats}
       bets={bets}
       params={parsed}

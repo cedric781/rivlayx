@@ -547,8 +547,71 @@ export const payoutAttempts = appSchema.table(
   }),
 );
 
+// ───────────── reputation (Sprint 15) ─────────────
+// Materialised trust snapshot per user, plus a transactional-outbox queue.
+// The money-path (settlement / dispute ruling / moderation) only enqueues a
+// refresh; a worker drains the queue and recomputes the snapshot out-of-band.
+
+export const reputationTierValues = [
+  'new',
+  'untrusted',
+  'bronze',
+  'silver',
+  'gold',
+  'trusted',
+] as const;
+export type ReputationTier = (typeof reputationTierValues)[number];
+
+export const userReputation = appSchema.table('user_reputation', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  /** 0–100 trust score. Internal — never shown publicly (tier badge only). */
+  score: integer('score').notNull().default(0),
+  tier: varchar('tier', { length: 16, enum: reputationTierValues }).notNull().default('new'),
+  /** When true the public UI shows "New" instead of a tier. */
+  provisional: boolean('provisional').notNull().default(true),
+  /** Raw signals + sub-scores + winRateAnomaly. Internal (T&S / debug). */
+  components: jsonb('components').notNull().default({}),
+  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  scoreIdx: index('user_reputation_score_idx').on(t.score),
+  tierIdx: index('user_reputation_tier_idx').on(t.tier),
+  scoreRange: check('user_reputation_score_range', sql`${t.score} >= 0 AND ${t.score} <= 100`),
+}));
+
+export const reputationRefreshReasonValues = [
+  'settlement',
+  'dispute_ruling',
+  'suspension',
+  'ban',
+  'reinstate',
+  'backfill',
+] as const;
+export type ReputationRefreshReason = (typeof reputationRefreshReasonValues)[number];
+
+export const reputationRecomputeQueue = appSchema.table(
+  'reputation_recompute_queue',
+  {
+    /** One pending row per user — enqueue upserts on conflict. */
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    reason: varchar('reason', { length: 32, enum: reputationRefreshReasonValues }).notNull(),
+    enqueuedAt: timestamp('enqueued_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    enqueuedIdx: index('reputation_queue_enqueued_idx').on(t.enqueuedAt),
+  }),
+);
+
 // ───────────── inferred types ─────────────
 
+export type UserReputation = typeof userReputation.$inferSelect;
+export type NewUserReputation = typeof userReputation.$inferInsert;
+export type ReputationRecomputeQueueRow = typeof reputationRecomputeQueue.$inferSelect;
+export type NewReputationRecomputeQueueRow = typeof reputationRecomputeQueue.$inferInsert;
 export type BetTemplate = typeof betTemplates.$inferSelect;
 export type NewBetTemplate = typeof betTemplates.$inferInsert;
 export type Bet = typeof bets.$inferSelect;

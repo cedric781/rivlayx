@@ -1,6 +1,7 @@
-import type { profiles } from '@rivlayx/core';
+import type { profiles, reputation } from '@rivlayx/core';
 import { formatDateTime } from '@/lib/marketplace/format';
 import type { ParsedProfileParams } from '@/lib/profile/params';
+import { ReputationBadge } from '@/components/reputation/reputation-badge';
 import { ProfileStats } from './profile-stats';
 import { BetHistory } from './bet-history';
 
@@ -11,6 +12,7 @@ import { BetHistory } from './bet-history';
  */
 export function ProfileView({
   user,
+  rep,
   stats,
   bets,
   params,
@@ -18,6 +20,7 @@ export function ProfileView({
   isOwn,
 }: {
   user: profiles.PublicUserSummary;
+  rep: reputation.PublicReputation;
   stats: profiles.ProfileStats;
   bets: profiles.ListProfileBetsResult;
   params: ParsedProfileParams;
@@ -27,7 +30,12 @@ export function ProfileView({
   return (
     <main style={{ maxWidth: 860, margin: '2rem auto', padding: '0 1rem' }}>
       <header style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: '0 0 0.2rem', fontSize: 26 }}>{user.displayName ?? `@${user.username}`}</h1>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <h1 style={{ margin: '0 0 0.2rem', fontSize: 26 }}>
+            {user.displayName ?? `@${user.username}`}
+          </h1>
+          <ReputationBadge tier={rep.tier} provisional={rep.provisional} />
+        </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 14, opacity: 0.6 }}>@{user.username}</span>
           <span style={{ fontSize: 13, opacity: 0.5 }}>Joined {formatDateTime(user.joinedAt)}</span>

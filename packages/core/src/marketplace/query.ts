@@ -13,7 +13,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
-import { bets, betShareLinks, betTemplates } from '@rivlayx/db';
+import { bets, betShareLinks, betTemplates, userReputation } from '@rivlayx/db';
 import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
@@ -152,10 +152,13 @@ export async function listMarketplaceBets(
       stakePerSideUsdc: bets.stakePerSideUsdc,
       createdAt: bets.createdAt,
       expiresAt: bets.expiresAt,
+      creatorTier: userReputation.tier,
+      creatorProvisional: userReputation.provisional,
     })
     .from(bets)
     .leftJoin(betTemplates, eq(betTemplates.id, bets.templateId))
     .leftJoin(shareAgg, eq(shareAgg.betId, bets.id))
+    .leftJoin(userReputation, eq(userReputation.userId, bets.creatorUserId))
     .where(where)
     .orderBy(...orderBy)
     .limit(pageSize)
@@ -179,6 +182,8 @@ export async function listMarketplaceBets(
     potUsdc: potUsdc(r.stakePerSideUsdc),
     createdAt: r.createdAt,
     expiresAt: r.expiresAt,
+    creatorTier: r.creatorTier ?? 'new',
+    creatorProvisional: r.creatorProvisional ?? true,
     sharePath: `/b/${r.shortCode}`,
   }));
 

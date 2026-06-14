@@ -13,6 +13,7 @@ export const CRON_LOCK_KEYS = {
   settle: 920_001,
   recon: 920_002,
   autoResolve: 920_003,
+  reputation: 920_004,
 } as const;
 
 /**

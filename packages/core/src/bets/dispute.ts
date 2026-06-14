@@ -6,6 +6,7 @@ import { BetError } from './errors';
 import { recordBetTransition } from './audit';
 import { DISPUTE_DEFAULTS, computeDisputeDeposit, type DisputeConfig } from './dispute-config';
 import { forfeitDisputeDeposit, lockDisputeDeposit, refundDisputeDeposit } from './dispute-escrow';
+import { enqueueReputationRefresh } from '../reputation/queue';
 import type {
   BetDb,
   OpenDisputeInput,
@@ -251,6 +252,12 @@ export async function ruleDispute(db: BetDb, input: RuleDisputeInput): Promise<R
         resolvedWinnerUserId,
       },
     });
+
+    // Transactional outbox: refresh both participants' reputation out-of-band.
+    await enqueueReputationRefresh(tx, row['creator_user_id'] as string, 'dispute_ruling');
+    if (row['acceptor_user_id']) {
+      await enqueueReputationRefresh(tx, row['acceptor_user_id'] as string, 'dispute_ruling');
+    }
 
     return { dispute: updatedDispute!, bet: updatedBet[0]! };
   });

@@ -58,6 +58,10 @@ export {
   payoutStatusValues,
   payoutAttempts,
   payoutAttemptStatusValues,
+  userReputation,
+  reputationTierValues,
+  reputationRecomputeQueue,
+  reputationRefreshReasonValues,
 } from './schema/app';
 export type {
   BetStatus,
@@ -101,6 +105,12 @@ export type {
   PayoutAttempt,
   NewPayoutAttempt,
   PayoutAttemptStatus,
+  ReputationTier,
+  ReputationRefreshReason,
+  UserReputation,
+  NewUserReputation,
+  ReputationRecomputeQueueRow,
+  NewReputationRecomputeQueueRow,
 } from './schema/app';
 
 // financial schema

@@ -3,6 +3,8 @@
   "crons": [
     { "path": "/api/cron/auto-resolve", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/settle", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/recon", "schedule": "0 * * * *" }
+    { "path": "/api/cron/recon", "schedule": "0 * * * *" },
+    { "path": "/api/cron/reputation", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/reputation?full=1", "schedule": "0 3 * * *" }
   ]
 }
