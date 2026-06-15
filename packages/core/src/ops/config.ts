@@ -10,6 +10,12 @@ import type { OpsAlertType, OpsSeverity } from '@rivlayx/db';
 export interface OpsConfig {
   /** Expected crons: interval + grace (stale once age > interval·grace). */
   crons: Record<string, { intervalMinutes: number; graceMultiplier: number }>;
+  /**
+   * `cron_runs` retention (G1). Rows older than `retentionDays` are pruned by the
+   * ops cycle, in bounded batches of `pruneBatch` — but the latest row per job is
+   * always kept, so freshness never regresses to `never`.
+   */
+  cronRuns: { retentionDays: number; pruneBatch: number };
   /** Reconciliation freshness: stale once the last run is older than this. */
   reconciliation: { maxAgeMinutes: number };
   /** TVL monitor: warn as TVL approaches the cap. */
@@ -29,6 +35,7 @@ export const OPS_DEFAULTS: OpsConfig = {
     risk: { intervalMinutes: 15, graceMultiplier: 3 },
     ops: { intervalMinutes: 15, graceMultiplier: 3 },
   },
+  cronRuns: { retentionDays: 30, pruneBatch: 1000 },
   reconciliation: { maxAgeMinutes: 180 },
   tvl: { capUsdc: 1000, warnRatio: 0.9 },
   runbooks: {

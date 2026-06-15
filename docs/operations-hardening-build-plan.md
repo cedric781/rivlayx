@@ -24,7 +24,8 @@ scope** and must be a separate, reviewed change.
 
 ## 2. Build order
 
-Per design §8, by value-per-risk + dependency: **G2 → G4 → G1 → G5 → G3.**
+Per design §8 + the review's revision (G5 last — largest regression surface):
+**G2 → G4 → G1 → G3 → G5.**
 
 ### Step 1 — G2: Runbooks
 - Create `docs/runbooks.md` with anchored sections matching `OPS_DEFAULTS.runbooks`
@@ -57,7 +58,17 @@ Per design §8, by value-per-risk + dependency: **G2 → G4 → G1 → G5 → G3
 - **Acceptance:** db-test — old rows pruned, the latest row per job always
   survives (rarely-run job not falsely marked `never`), batch bounded.
 
-### Step 4 — G5: Webhook enrichment
+### Step 4 — G3: `health_degraded` wiring (catch-all — decision locked)
+- **Decision:** keep `health_degraded` and wire it as a catch-all.
+- Add a terminal rule in `evaluateOps` — emit `health_degraded` (dedupKey
+  `health`) only when **no specific spec fired** (none of `cron_failed`,
+  `cron_stale`, `reconciliation_stale`, `reconciliation_drift`, `tvl_near_cap`,
+  `freeze_active`) but the `getHealthSnapshot` roll-up is non-`ok`; escalate to
+  `critical` when the roll-up is `down`, else `warning`.
+- **Acceptance:** unit-test proves it fires only when no specific alert does and
+  never double-pages a named condition; `evaluateOps` stays pure.
+
+### Step 5 — G5: Webhook enrichment (last — largest regression surface)
 - Change `upsertOpsAlert` to return the persisted row (`id`, `runbookUrl`,
   `createdAt`) instead of a bare boolean; update `runOpsCycle` to dispatch
   **after** insert using those values.
@@ -67,16 +78,6 @@ Per design §8, by value-per-risk + dependency: **G2 → G4 → G1 → G5 → G3
   persisted `created_at`).
 - **Acceptance:** unit/db-test — dispatched payload contains id + absolute
   runbook + timestamp; no double-dispatch; dedup/auto-resolve unchanged.
-
-### Step 5 — G3: `health_degraded` wiring (catch-all — decision locked)
-- **Decision:** keep `health_degraded` and wire it as a catch-all.
-- Add a terminal rule in `evaluateOps` — emit `health_degraded` (dedupKey
-  `health`) only when **no specific spec fired** (none of `cron_failed`,
-  `cron_stale`, `reconciliation_stale`, `reconciliation_drift`, `tvl_near_cap`,
-  `freeze_active`) but the `getHealthSnapshot` roll-up is non-`ok`; escalate to
-  `critical` when the roll-up is `down`, else `warning`.
-- **Acceptance:** unit-test proves it fires only when no specific alert does and
-  never double-pages a named condition; `evaluateOps` stays pure.
 
 ## 3. Test / validation plan
 

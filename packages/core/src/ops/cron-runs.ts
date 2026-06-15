@@ -60,6 +60,32 @@ async function safeInsert(
   }
 }
 
+/**
+ * Prune old `cron_runs` rows (G1). Deletes rows older than the retention window
+ * in one bounded batch (`pruneBatch`) — a backlog drains over successive cycles.
+ * **Never deletes the latest row per job** (guard: only delete a row that has a
+ * newer sibling for the same job), so a rarely-run job keeps its freshness row
+ * and never falsely flips to `never`. Returns the number of rows pruned.
+ */
+export async function pruneCronRuns(db: OpsDb, config: OpsConfig = OPS_DEFAULTS): Promise<number> {
+  const cutoff = new Date(Date.now() - config.cronRuns.retentionDays * 86_400_000).toISOString();
+  const batch = config.cronRuns.pruneBatch;
+  const res = await db.execute(sql`
+    DELETE FROM "app"."cron_runs"
+    WHERE id IN (
+      SELECT cr.id
+      FROM "app"."cron_runs" cr
+      WHERE cr.finished_at < ${cutoff}::timestamptz
+        AND EXISTS (
+          SELECT 1 FROM "app"."cron_runs" newer
+          WHERE newer.job = cr.job AND newer.finished_at > cr.finished_at
+        )
+      LIMIT ${batch}
+    )
+    RETURNING id`);
+  return rowsOf(res).length;
+}
+
 /** Freshness of every expected cron, derived from the latest `cron_runs` row. */
 export async function getCronHealth(
   db: OpsDb,

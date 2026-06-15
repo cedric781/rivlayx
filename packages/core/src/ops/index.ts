@@ -5,12 +5,13 @@ export type {
   CronHealth,
   OpsSnapshot,
   OpsAlertSpec,
+  DispatchableAlert,
   HealthStatus,
   HealthCheck,
   HealthSnapshot,
 } from './types';
 
-export { recordCronRun, getCronHealth } from './cron-runs';
+export { recordCronRun, getCronHealth, pruneCronRuns } from './cron-runs';
 export { evaluateOps, gatherOpsSnapshot } from './evaluate';
 export { upsertOpsAlert, resolveClearedOpsAlerts } from './monitor';
 export { dispatchOpsAlerts, type NotifierConfig, type DispatchResult } from './notifier';

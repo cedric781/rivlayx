@@ -3,7 +3,7 @@ import { reconciliationRuns } from '@rivlayx/db';
 import { OPS_DEFAULTS, type OpsConfig } from './config';
 import { computeCurrentTvl } from '../deposits/tvl';
 import { getCronHealth } from './cron-runs';
-import type { OpsAlertSpec, OpsSnapshot } from './types';
+import type { HealthStatus, OpsAlertSpec, OpsSnapshot } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OpsDb = any;
@@ -13,8 +13,17 @@ type OpsDb = any;
  * the thresholds are unit-testable. Advisory only — these alerts never change
  * money-path behaviour. (Reconciliation's own auto-freeze lives in the recon
  * cron; this layer adds *visibility + paging*, not enforcement.)
+ *
+ * `healthStatus` (G3) is the `getHealthSnapshot` roll-up. It drives the
+ * `health_degraded` **catch-all**: emitted only when the roll-up is non-`ok` but
+ * **none** of the six specific alerts fired — the "something is wrong we didn't
+ * name" net. By construction it never double-pages a named condition.
  */
-export function evaluateOps(snapshot: OpsSnapshot, config: OpsConfig = OPS_DEFAULTS): OpsAlertSpec[] {
+export function evaluateOps(
+  snapshot: OpsSnapshot,
+  config: OpsConfig = OPS_DEFAULTS,
+  healthStatus?: HealthStatus,
+): OpsAlertSpec[] {
   const specs: OpsAlertSpec[] = [];
 
   for (const c of snapshot.crons) {
@@ -74,6 +83,18 @@ export function evaluateOps(snapshot: OpsSnapshot, config: OpsConfig = OPS_DEFAU
       dedupKey: 'freeze',
       title: `Freeze active: ${snapshot.frozenComponents.join(', ')}`,
       evidence: { components: snapshot.frozenComponents },
+    });
+  }
+
+  // G3 catch-all: a degraded/down health roll-up that no specific alert above
+  // already named. Fires only when `specs` is empty, so it never double-pages.
+  if (specs.length === 0 && healthStatus && healthStatus !== 'ok') {
+    specs.push({
+      type: 'health_degraded',
+      severity: healthStatus === 'down' ? 'critical' : config.severities.health_degraded,
+      dedupKey: 'health',
+      title: `System health ${healthStatus} with no specific alert`,
+      evidence: { healthStatus },
     });
   }
 

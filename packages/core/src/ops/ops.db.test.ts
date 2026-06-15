@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ne, sql } from 'drizzle-orm';
 import { cronRuns, opsAlerts, reconciliationRuns } from '@rivlayx/db';
 import { createTestDb, type TestDb } from '@rivlayx/test-utils';
 import { OPS_DEFAULTS } from './config';
-import { recordCronRun, getCronHealth } from './cron-runs';
+import { recordCronRun, getCronHealth, pruneCronRuns } from './cron-runs';
 import { runOpsCycle } from './cycle';
 import { getHealthSnapshot } from './health';
 
@@ -66,6 +66,61 @@ describe('getCronHealth', () => {
   });
 });
 
+describe('pruneCronRuns', () => {
+  const DAY = 86_400_000;
+
+  it('prunes rows older than retention but always keeps the latest row per job', async () => {
+    const old40 = new Date(Date.now() - 40 * DAY);
+    const old35 = new Date(Date.now() - 35 * DAY);
+    const recent = new Date(Date.now() - 1 * DAY);
+    // settle: two old + one recent → the two old are prunable, recent is latest.
+    await harness.db.insert(cronRuns).values([
+      { job: 'settle', status: 'ok', startedAt: old40, finishedAt: old40, durationMs: 0 },
+      { job: 'settle', status: 'ok', startedAt: old35, finishedAt: old35, durationMs: 0 },
+      { job: 'settle', status: 'ok', startedAt: recent, finishedAt: recent, durationMs: 0 },
+    ]);
+    // recon: ONLY one old row → it is the latest, must be kept (no false 'never').
+    await harness.db
+      .insert(cronRuns)
+      .values({ job: 'recon', status: 'ok', startedAt: old40, finishedAt: old40, durationMs: 0 });
+
+    const pruned = await pruneCronRuns(harness.db, OPS_DEFAULTS);
+    expect(pruned).toBe(2);
+
+    const rows = await harness.db.select({ job: cronRuns.job }).from(cronRuns);
+    const jobs = rows.map((r: { job: string }) => r.job).sort();
+    expect(jobs).toEqual(['recon', 'settle']); // one row left per job
+
+    // The rarely-run recon job must still report a real last run, not `never`.
+    const health = await getCronHealth(harness.db, {
+      ...OPS_DEFAULTS,
+      crons: { recon: { intervalMinutes: 60, graceMultiplier: 2 } },
+    });
+    expect(health.find((c) => c.job === 'recon')!.lastStatus).toBe('ok');
+  });
+
+  it('respects the bounded prune batch', async () => {
+    const old = new Date(Date.now() - 40 * DAY);
+    const recent = new Date();
+    await harness.db.insert(cronRuns).values([
+      ...Array.from({ length: 5 }, () => ({
+        job: 'risk',
+        status: 'ok' as const,
+        startedAt: old,
+        finishedAt: old,
+        durationMs: 0,
+      })),
+      { job: 'risk', status: 'ok' as const, startedAt: recent, finishedAt: recent, durationMs: 0 },
+    ]);
+
+    const cfg = { ...OPS_DEFAULTS, cronRuns: { retentionDays: 30, pruneBatch: 2 } };
+    expect(await pruneCronRuns(harness.db, cfg)).toBe(2); // bounded to the batch
+    expect(await pruneCronRuns(harness.db, cfg)).toBe(2); // drains over cycles
+    expect(await pruneCronRuns(harness.db, cfg)).toBe(1); // last old row
+    expect(await pruneCronRuns(harness.db, cfg)).toBe(0); // only the latest remains
+  });
+});
+
 describe('runOpsCycle', () => {
   it('creates alerts, dedups on re-run, and auto-resolves when healthy', async () => {
     // Stale cron (finished 10 min ago vs interval·grace = 1 min) + never-run recon.
@@ -97,6 +152,38 @@ describe('runOpsCycle', () => {
     const third = await runOpsCycle(harness.db, { config: CFG });
     expect(third.resolved).toBeGreaterThanOrEqual(2);
     expect(await countOpen()).toBe(0);
+  });
+
+  it('dispatches an enriched webhook payload (id + absolute runbook + timestamp) for new alerts', async () => {
+    const past = new Date(Date.now() - 10 * 60_000);
+    await harness.db
+      .insert(cronRuns)
+      .values({ job: 'settle', status: 'ok', startedAt: past, finishedAt: past, durationMs: 0 });
+
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(null, { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const res = await runOpsCycle(harness.db, {
+      config: CFG,
+      notifier: {
+        webhookUrl: 'https://hook.example/relay',
+        publicBaseUrl: 'https://ops.rivlayx.com',
+        fetchImpl,
+      },
+    });
+
+    expect(res.dispatched).toBeGreaterThanOrEqual(1);
+    const cronStale = bodies.find((b) => b['type'] === 'cron_stale')!;
+    expect(cronStale).toMatchObject({
+      source: 'rivlayx-ops',
+      type: 'cron_stale',
+      runbookUrl: 'https://ops.rivlayx.com/docs/runbooks#cron-stuck',
+    });
+    expect(typeof cronStale['id']).toBe('string'); // persisted uuid handle
+    expect(typeof cronStale['timestamp']).toBe('string'); // ISO created_at
   });
 });
 

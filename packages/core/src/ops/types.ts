@@ -35,6 +35,17 @@ export interface OpsAlertSpec {
   evidence: Record<string, unknown>;
 }
 
+/**
+ * A newly-persisted alert ready to dispatch (G5). Carries the persisted `id` +
+ * `runbookUrl` + `createdAt` on top of the spec, so the webhook page is
+ * actionable (dashboard handle, runbook link, timestamp).
+ */
+export interface DispatchableAlert extends OpsAlertSpec {
+  id: string;
+  runbookUrl: string | null;
+  createdAt: Date;
+}
+
 export type HealthStatus = 'ok' | 'degraded' | 'down';
 
 export interface HealthCheck {

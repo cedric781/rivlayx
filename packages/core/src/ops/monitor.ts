@@ -1,7 +1,7 @@
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { opsAlerts } from '@rivlayx/db';
 import { OPS_DEFAULTS, type OpsConfig } from './config';
-import type { OpsAlertSpec } from './types';
+import type { DispatchableAlert, OpsAlertSpec } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OpsDb = any;
@@ -12,13 +12,14 @@ type OpsDb = any;
  * - existing **acknowledged** alert → refresh evidence, keep acknowledged
  *   (suppressed: an operator is already on it; do not re-page).
  * - otherwise insert a fresh **open** alert (this is what gets dispatched).
- * Returns true when a NEW open alert was created (→ notify).
+ * Returns the **persisted alert** (id + runbookUrl + createdAt) when a NEW open
+ * alert was created (→ dispatch), or `null` when deduped/suppressed (→ no page).
  */
 export async function upsertOpsAlert(
   db: OpsDb,
   spec: OpsAlertSpec,
   config: OpsConfig = OPS_DEFAULTS,
-): Promise<boolean> {
+): Promise<DispatchableAlert | null> {
   const [existing] = await db
     .select({ id: opsAlerts.id, status: opsAlerts.status })
     .from(opsAlerts)
@@ -33,19 +34,33 @@ export async function upsertOpsAlert(
       .update(opsAlerts)
       .set({ severity: spec.severity, title: spec.title, evidence: spec.evidence, updatedAt: new Date() })
       .where(eq(opsAlerts.id, existing.id));
-    return false; // already open/acknowledged → no new page
+    return null; // already open/acknowledged → no new page
   }
 
-  await db.insert(opsAlerts).values({
+  const runbookUrl = config.runbooks[spec.type] ?? null;
+  const [row] = await db
+    .insert(opsAlerts)
+    .values({
+      type: spec.type,
+      severity: spec.severity,
+      dedupKey: spec.dedupKey,
+      title: spec.title,
+      evidence: spec.evidence,
+      runbookUrl,
+      status: 'open',
+    })
+    .returning({ id: opsAlerts.id, createdAt: opsAlerts.createdAt, runbookUrl: opsAlerts.runbookUrl });
+
+  return {
+    id: row.id,
     type: spec.type,
     severity: spec.severity,
     dedupKey: spec.dedupKey,
     title: spec.title,
     evidence: spec.evidence,
-    runbookUrl: config.runbooks[spec.type] ?? null,
-    status: 'open',
-  });
-  return true;
+    runbookUrl: row.runbookUrl,
+    createdAt: row.createdAt,
+  };
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { OpsAlertSpec } from './types';
+import type { DispatchableAlert } from './types';
 
 /**
  * Generic webhook notifier — **no vendor SDK, no lock-in.** The destination is
@@ -14,6 +14,11 @@ export interface NotifierConfig {
   webhookUrl: string | null;
   /** Only dispatch alerts at or above this severity. */
   minSeverity?: 'info' | 'warning' | 'critical';
+  /**
+   * Public base URL (G5) used to turn a relative runbook path into an absolute,
+   * clickable link in the off-platform page. Null/absent ⇒ relative fallback.
+   */
+  publicBaseUrl?: string | null;
   /** Injected for testing; defaults to global fetch. */
   fetchImpl?: typeof fetch;
 }
@@ -25,30 +30,44 @@ export interface DispatchResult {
   skipped: number;
 }
 
-/** Dispatch newly-created alerts to the configured webhook. Best-effort. */
+/** Make a relative runbook path absolute against `publicBaseUrl`; pass through otherwise. */
+function absoluteRunbook(runbookUrl: string | null, publicBaseUrl?: string | null): string | null {
+  if (!runbookUrl) return null;
+  if (!publicBaseUrl || !runbookUrl.startsWith('/')) return runbookUrl;
+  return `${publicBaseUrl.replace(/\/$/, '')}${runbookUrl}`;
+}
+
+/**
+ * Dispatch newly-created alerts to the configured webhook. Best-effort. The
+ * envelope is enriched (G5) with the persisted `id`, an absolute `runbookUrl`
+ * and a `timestamp`, so an on-call paged off-platform can act immediately.
+ */
 export async function dispatchOpsAlerts(
-  specs: OpsAlertSpec[],
+  alerts: DispatchableAlert[],
   config: NotifierConfig,
 ): Promise<DispatchResult> {
   const min = SEVERITY_RANK[config.minSeverity ?? 'warning'] ?? 1;
-  const eligible = specs.filter((s) => (SEVERITY_RANK[s.severity] ?? 0) >= min);
+  const eligible = alerts.filter((a) => (SEVERITY_RANK[a.severity] ?? 0) >= min);
 
   if (!config.webhookUrl) return { dispatched: 0, skipped: eligible.length };
 
   const doFetch = config.fetchImpl ?? fetch;
   let dispatched = 0;
-  for (const s of eligible) {
+  for (const a of eligible) {
     try {
       await doFetch(config.webhookUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           source: 'rivlayx-ops',
-          type: s.type,
-          severity: s.severity,
-          title: s.title,
-          dedupKey: s.dedupKey,
-          evidence: s.evidence,
+          id: a.id,
+          type: a.type,
+          severity: a.severity,
+          title: a.title,
+          dedupKey: a.dedupKey,
+          runbookUrl: absoluteRunbook(a.runbookUrl, config.publicBaseUrl),
+          timestamp: a.createdAt.toISOString(),
+          evidence: a.evidence,
         }),
       });
       dispatched++;

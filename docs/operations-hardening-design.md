@@ -207,10 +207,12 @@ Ordered by **value-per-risk** and dependency:
    checklist). Closes the highest-severity blind spot (watcher self-failure).
 3. **Gap 1 — `cron_runs` retention** (config + prune in `runOpsCycle`). Bounds
    growth; independent of the others.
-4. **Gap 5 — webhook enrichment** (return row from `upsertOpsAlert`, dispatch
-   after insert, absolute URL). Depends on Gap 2 (runbook anchors) for the link.
-5. **Gap 3 — `health_degraded` wiring** (catch-all, decision locked in §3). Last,
-   because it benefits from the other signals being settled first.
+4. **Gap 3 — `health_degraded` wiring** (catch-all, decision locked in §3).
+   Additive pure-evaluator rule; benefits from the other signals being settled.
+5. **Gap 5 — webhook enrichment** (return row from `upsertOpsAlert`, dispatch
+   after insert, absolute URL). **Last** — largest regression surface (the only
+   item that restructures `runOpsCycle` control flow + a function signature), so
+   nothing else depends on it. Depends on Gap 2 (runbook anchors) for the link.
 
 ## 9. Out of scope (this sprint)
 

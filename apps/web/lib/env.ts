@@ -28,6 +28,13 @@ const BaseSchema = z.object({
   CRON_SECRET: z.string().min(16).optional(),
   API_FOOTBALL_KEY: z.string().optional(),
   COINGECKO_API_KEY: z.string().optional(),
+  // Sprint 24 (G4) — dedicated read-only token for the deep health endpoint, so
+  // monitoring vendors never need CRON_SECRET. Optional: /api/ops/health also
+  // accepts the cron secret for internal callers.
+  OPS_HEALTH_TOKEN: z.string().min(16).optional(),
+  // Sprint 24 (G5) — public base URL used to build absolute runbook links in the
+  // dispatched ops-alert webhook. Optional: falls back to the relative path.
+  OPS_PUBLIC_BASE_URL: z.string().url().optional(),
 });
 
 const Schema = BaseSchema.superRefine((env, ctx) => {

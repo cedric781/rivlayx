@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { OPS_DEFAULTS, type OpsConfig } from './config';
 import { gatherOpsSnapshot } from './evaluate';
-import type { HealthCheck, HealthSnapshot, HealthStatus } from './types';
+import type { HealthCheck, HealthSnapshot, HealthStatus, OpsSnapshot } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OpsDb = any;
@@ -19,6 +19,7 @@ function worst(a: HealthStatus, b: HealthStatus): HealthStatus {
 export async function getHealthSnapshot(
   db: OpsDb,
   config: OpsConfig = OPS_DEFAULTS,
+  snapshot?: OpsSnapshot,
 ): Promise<HealthSnapshot> {
   const checks: HealthCheck[] = [];
 
@@ -35,7 +36,9 @@ export async function getHealthSnapshot(
     return { status: 'down', checks };
   }
 
-  const snap = await gatherOpsSnapshot(db, config);
+  // Reuse a pre-gathered snapshot when the caller already has one (the ops cycle),
+  // avoiding a second gather; otherwise gather fresh (the health endpoint).
+  const snap = snapshot ?? (await gatherOpsSnapshot(db, config));
 
   const staleOrFailing = snap.crons.filter((c) => c.stale || c.failing);
   checks.push({

@@ -17,10 +17,11 @@ export async function GET(request: Request) {
 
   const db = getDb();
   const webhookUrl = process.env['OPS_ALERT_WEBHOOK_URL'] ?? null;
+  const publicBaseUrl = process.env['OPS_PUBLIC_BASE_URL'] ?? null;
 
   const locked = await ops.recordCronRun(db, 'ops', () =>
     cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.ops, async () =>
-      ops.runOpsCycle(db, { notifier: { webhookUrl } }),
+      ops.runOpsCycle(db, { notifier: { webhookUrl, publicBaseUrl } }),
     ),
   );
 
