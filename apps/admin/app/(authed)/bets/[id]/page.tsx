@@ -5,6 +5,7 @@ import { can } from '@rivlayx/auth';
 import {
   betAuditLog,
   betEvents,
+  betEvidence,
   betParticipants,
   betRules,
   bets,
@@ -20,6 +21,8 @@ import { ActionButton } from '@/components/action-button';
 export const metadata = { title: 'Bet — RivlayX Admin' };
 
 const VOIDABLE: BetStatus[] = ['OPEN', 'ACTIVE', 'AWAITING_RESULT', 'DISPUTED'];
+/** States where an admin can still rule a winner (before any result is proposed). */
+const RESOLVABLE: BetStatus[] = ['ACTIVE', 'AWAITING_RESULT'];
 
 export default async function BetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, roles } = await requireSession(getDb, {
@@ -62,8 +65,20 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
     .orderBy(desc(betAuditLog.at))
     .limit(50);
   const disputeRows = await db.select().from(disputes).where(eq(disputes.betId, bet.id));
+  const evidence = await db
+    .select()
+    .from(betEvidence)
+    .where(eq(betEvidence.betId, bet.id))
+    .orderBy(desc(betEvidence.uploadedAt));
 
   const canVoid = can(roles, 'voidBet') && VOIDABLE.includes(bet.status);
+  const canResolve =
+    can(roles, 'ruleDispute') &&
+    RESOLVABLE.includes(bet.status) &&
+    !bet.resolvedWinnerUserId &&
+    !bet.proposedWinnerUserId;
+  const creatorRow = participants.find((row) => row.p.role === 'creator');
+  const acceptorRow = participants.find((row) => row.p.role === 'acceptor');
 
   return (
     <AdminShell user={user} roles={roles}>
@@ -109,6 +124,41 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
         )}
       </section>
 
+      {canResolve && (
+        <section
+          style={{
+            marginTop: '2rem',
+            border: '1px solid #2c3036',
+            borderRadius: 6,
+            padding: '1rem 1.25rem',
+            background: '#13161a',
+          }}
+        >
+          <h2 style={{ fontSize: 18, marginTop: 0 }}>Resolve (admin)</h2>
+          <p style={{ fontSize: 13, opacity: 0.7, marginTop: 0 }}>
+            Rule which side won. This proposes the winner via the resolve engine and opens the
+            standard dispute window — the existing settlement flow pays out the winner after the
+            window closes. No money moves here.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <ActionButton
+              endpoint={`/api/admin/bets/${bet.id}/resolve`}
+              label={`Creator wins${creatorRow?.u?.email ? ` — ${creatorRow.u.email}` : ''}`}
+              body={{ winner: 'creator' }}
+              requireReason
+              confirmMessage="Rule the CREATOR as winner? Opens the dispute window, then settles to the creator."
+            />
+            <ActionButton
+              endpoint={`/api/admin/bets/${bet.id}/resolve`}
+              label={`Acceptor wins${acceptorRow?.u?.email ? ` — ${acceptorRow.u.email}` : ''}`}
+              body={{ winner: 'acceptor' }}
+              requireReason
+              confirmMessage="Rule the ACCEPTOR as winner? Opens the dispute window, then settles to the acceptor."
+            />
+          </div>
+        </section>
+      )}
+
       <section style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: 18 }}>Rules</h2>
         <ul>
@@ -129,6 +179,22 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
             </li>
           ))}
         </ul>
+      </section>
+
+      <section style={{ marginTop: '2rem' }}>
+        <h2 style={{ fontSize: 18 }}>Evidence</h2>
+        {evidence.length === 0 ? (
+          <p style={{ opacity: 0.6, fontSize: 13 }}>No evidence submitted for this bet.</p>
+        ) : (
+          <ul style={{ fontSize: 13 }}>
+            {evidence.map((e) => (
+              <li key={e.id} style={{ marginBottom: 4 }}>
+                <code>{e.storageKey}</code> · {e.contentType ?? 'unknown type'} · sha256{' '}
+                <code>{e.sha256.slice(0, 12)}…</code> · {e.uploadedAt.toISOString()}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {disputeRows.length > 0 && (
