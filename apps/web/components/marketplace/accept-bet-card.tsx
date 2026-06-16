@@ -61,6 +61,9 @@ export function AcceptBetCard({
   const [freeformSide, setFreeformSide] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** form → confirm (review the lock) → success (stake locked, bet ACTIVE). */
+  const [step, setStep] = useState<'form' | 'confirm' | 'success'>('form');
+  const [accepted, setAccepted] = useState<{ side: string; stakeLockedUsdc: string; status: string } | null>(null);
 
   const yourSide = mode.kind === 'fixed' ? mode.side : mode.kind === 'freeform' ? freeformSide.trim() : selectedSide;
 
@@ -68,7 +71,8 @@ export function AcceptBetCard({
   const sideChosen = yourSide.length >= 1 && yourSide.length <= 64 && yourSide !== creatorSide;
   const canSubmit = hasFunds && sideChosen && !submitting;
 
-  async function onAccept() {
+  /** Validate the form, then move to the confirmation step (no money moves yet). */
+  function onReview() {
     setError(null);
     if (!hasFunds) {
       setError('Insufficient balance — deposit more USDC to accept this bet.');
@@ -78,6 +82,12 @@ export function AcceptBetCard({
       setError(`Choose a side different from the creator's ("${creatorSide}").`);
       return;
     }
+    setStep('confirm');
+  }
+
+  /** Commit the accept: lock stake into escrow and flip OPEN → ACTIVE via the engine. */
+  async function onConfirm() {
+    setError(null);
     setSubmitting(true);
     try {
       const res = await fetch(`/api/bets/${betId}/accept`, {
@@ -85,25 +95,73 @@ export function AcceptBetCard({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ acceptorSide: yourSide }),
       });
+      const data: unknown = await res.json().catch(() => null);
       if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
         const message =
           (data as { error?: { message?: string } } | null)?.error?.message ??
           `Accept failed (${res.status})`;
         setError(message);
+        setStep('form');
         return;
       }
-      router.refresh();
+      const ok = data as
+        | { bet?: { status?: string }; acceptorParticipant?: { side?: string; stakeLockedUsdc?: string } }
+        | null;
+      setAccepted({
+        side: ok?.acceptorParticipant?.side ?? yourSide,
+        stakeLockedUsdc: ok?.acceptorParticipant?.stakeLockedUsdc ?? stakeRequiredUsdc,
+        status: ok?.bet?.status ?? 'ACTIVE',
+      });
+      setStep('success');
     } catch {
       setError('Network error — please try again.');
+      setStep('form');
     } finally {
       setSubmitting(false);
     }
   }
 
+  if (step === 'success' && accepted) {
+    return (
+      <div
+        style={{
+          border: '1px solid #bbf7d0',
+          background: '#f0fdf4',
+          borderRadius: 12,
+          padding: '1.25rem',
+          marginBottom: '1rem',
+        }}
+      >
+        <h2 style={{ marginTop: 0, fontSize: 18 }}>Bet accepted 🎉</h2>
+        <p style={{ marginTop: 0, fontSize: 14, opacity: 0.8 }}>
+          You locked <strong>{formatUsdc(accepted.stakeLockedUsdc)}</strong> on side{' '}
+          <code>{accepted.side}</code>. The bet is now <strong>{accepted.status}</strong> and the{' '}
+          {formatUsdc(potUsdc)} pot is in escrow until it resolves.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          style={{
+            padding: '0.55rem 1.3rem',
+            borderRadius: 8,
+            border: 'none',
+            background: '#1f2937',
+            color: '#fff',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          View active bet →
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={card}>
-      <h2 style={{ fontSize: 16, marginTop: 0 }}>Accept this bet</h2>
+      <h2 style={{ fontSize: 16, marginTop: 0 }}>
+        {step === 'confirm' ? 'Confirm acceptance' : 'Accept this bet'}
+      </h2>
 
       <div
         style={{
@@ -139,7 +197,7 @@ export function AcceptBetCard({
         </div>
       </div>
 
-      {mode.kind === 'select' ? (
+      {step === 'form' && mode.kind === 'select' ? (
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ ...label, marginBottom: 6 }}>Choose your side</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -164,7 +222,7 @@ export function AcceptBetCard({
         </div>
       ) : null}
 
-      {mode.kind === 'freeform' ? (
+      {step === 'form' && mode.kind === 'freeform' ? (
         <div style={{ marginBottom: '1rem' }}>
           <label htmlFor="acceptor-side" style={{ ...label, display: 'block', marginBottom: 6 }}>
             Your side (must differ from “{creatorSide}”)
@@ -210,22 +268,65 @@ export function AcceptBetCard({
         </p>
       ) : null}
 
-      <button
-        type="button"
-        onClick={onAccept}
-        disabled={!canSubmit}
-        style={{
-          padding: '0.6rem 1.4rem',
-          borderRadius: 8,
-          border: 'none',
-          background: canSubmit ? '#1f2937' : '#9ca3af',
-          color: '#fff',
-          fontWeight: 600,
-          cursor: canSubmit ? 'pointer' : 'not-allowed',
-        }}
-      >
-        {submitting ? 'Accepting…' : 'Accept Bet'}
-      </button>
+      {step === 'confirm' ? (
+        <>
+          <p style={{ margin: '0 0 0.9rem', fontSize: 14 }}>
+            You are about to lock <strong>{formatUsdc(stakeRequiredUsdc)}</strong> on side{' '}
+            <code>{yourSide}</code>. This funds escrow and makes the bet <strong>ACTIVE</strong> — it
+            cannot be undone.
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={submitting}
+              style={{
+                padding: '0.6rem 1.4rem',
+                borderRadius: 8,
+                border: 'none',
+                background: submitting ? '#9ca3af' : '#1f2937',
+                color: '#fff',
+                fontWeight: 600,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {submitting ? 'Locking…' : `Confirm — lock ${formatUsdc(stakeRequiredUsdc)}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep('form')}
+              disabled={submitting}
+              style={{
+                padding: '0.6rem 1.2rem',
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
+                background: '#fff',
+                fontWeight: 600,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Back
+            </button>
+          </div>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={onReview}
+          disabled={!canSubmit}
+          style={{
+            padding: '0.6rem 1.4rem',
+            borderRadius: 8,
+            border: 'none',
+            background: canSubmit ? '#1f2937' : '#9ca3af',
+            color: '#fff',
+            fontWeight: 600,
+            cursor: canSubmit ? 'pointer' : 'not-allowed',
+          }}
+        >
+          Accept Bet
+        </button>
+      )}
     </div>
   );
 }
