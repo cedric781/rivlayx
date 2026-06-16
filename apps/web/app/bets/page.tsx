@@ -25,7 +25,23 @@ export default async function BetsPage({
 
   return (
     <main style={{ maxWidth: 1040, margin: '2rem auto', padding: '0 1rem' }}>
-      <h1 style={{ marginBottom: 4 }}>Open bets</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <h1 style={{ marginBottom: 4 }}>Open bets</h1>
+        <Link
+          href="/bets/new"
+          style={{
+            padding: '0.5rem 1.1rem',
+            borderRadius: 8,
+            background: '#1f2937',
+            color: '#fff',
+            fontWeight: 600,
+            textDecoration: 'none',
+            fontSize: 14,
+          }}
+        >
+          + Create bet
+        </Link>
+      </div>
       <p style={{ marginTop: 0, opacity: 0.6, fontSize: 14 }}>
         Browse open wagers. {result.total} match your filters.
       </p>

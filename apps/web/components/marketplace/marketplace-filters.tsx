@@ -2,8 +2,8 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { marketplace } from '@rivlayx/core';
-import { resolveTypeValues } from '@rivlayx/db';
+import * as marketplace from '@rivlayx/core/marketplace/types';
+import { resolveTypeValues } from '@rivlayx/db/schema';
 import { humanizeCategory, humanizeResolveType } from '@/lib/marketplace/format';
 
 /** Exact creator-tier filter options (Sprint 16). */

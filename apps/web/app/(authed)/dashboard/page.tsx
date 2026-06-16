@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { eq } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
 import { wallets } from '@rivlayx/db';
@@ -22,7 +23,22 @@ export default async function DashboardPage() {
         }}
       >
         <h1 style={{ margin: 0 }}>Dashboard</h1>
-        <LogoutButton />
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <Link
+            href="/bets/new"
+            style={{
+              padding: '0.5rem 1.1rem',
+              borderRadius: 8,
+              background: '#1f2937',
+              color: '#fff',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            + Create bet
+          </Link>
+          <LogoutButton />
+        </div>
       </header>
 
       <section style={{ marginTop: '2rem' }}>
