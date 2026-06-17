@@ -89,21 +89,35 @@ describe('apps/web env validation', () => {
       PRIVY_APP_SECRET: 'prod-app-secret',
       PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
       CRON_SECRET: 'prod-cron-secret-0123456789',
+      SOLANA_USDC_MINT: 'DevnetUsdcMintForProd11111111111111111111',
     });
     expect(env.PRIVY_APP_ID).toBe('prod-app-id');
     expect(env.PLATFORM_VAULT_ATA).toBe('VaultAtaAddressForProd1111111111111111111');
+    expect(env.SOLANA_USDC_MINT).toBe('DevnetUsdcMintForProd11111111111111111111');
   });
 
+  const prodBase = {
+    NODE_ENV: 'production',
+    DATABASE_URL: 'postgresql://u:p@host:5432/db',
+    PRIVY_APP_ID: 'prod-app-id',
+    NEXT_PUBLIC_PRIVY_APP_ID: 'prod-app-id',
+    PRIVY_APP_SECRET: 'prod-app-secret',
+    PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
+    CRON_SECRET: 'prod-cron-secret-0123456789',
+    SOLANA_USDC_MINT: 'DevnetUsdcMintForProd11111111111111111111',
+  };
+
   it('requires CRON_SECRET in production', () => {
-    expect(() =>
-      loadEnv({
-        NODE_ENV: 'production',
-        DATABASE_URL: 'postgresql://u:p@host:5432/db',
-        PRIVY_APP_ID: 'prod-app-id',
-        NEXT_PUBLIC_PRIVY_APP_ID: 'prod-app-id',
-        PRIVY_APP_SECRET: 'prod-app-secret',
-        PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
-      }),
-    ).toThrow(/CRON_SECRET/);
+    const { CRON_SECRET: _omitCron, ...noCron } = prodBase;
+    expect(() => loadEnv(noCron)).toThrow(/CRON_SECRET/);
+  });
+
+  it('requires SOLANA_USDC_MINT in production (no mainnet-mint fallback on devnet)', () => {
+    const { SOLANA_USDC_MINT: _omitMint, ...noMint } = prodBase;
+    expect(() => loadEnv(noMint)).toThrow(/SOLANA_USDC_MINT/);
+  });
+
+  it('does NOT require SOLANA_USDC_MINT outside production', () => {
+    expect(() => loadEnv(valid)).not.toThrow(); // dev/test use the mock provider
   });
 });

@@ -86,6 +86,16 @@ const Schema = BaseSchema.superRefine((env, ctx) => {
         message: 'required in production (cron routes refuse to run without it)',
       });
     }
+    if (!env.SOLANA_USDC_MINT) {
+      // The real payout provider only runs in production. Without an explicit
+      // mint it falls back to the mainnet USDC mint — wrong (and unsafe) on a
+      // devnet deploy. Force an explicit value so the network can never mismatch.
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SOLANA_USDC_MINT'],
+        message: 'required in production (prevents fallback to the mainnet USDC mint on a devnet deploy)',
+      });
+    }
   }
 });
 
