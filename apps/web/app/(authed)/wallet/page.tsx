@@ -40,19 +40,35 @@ export default async function WalletPage() {
         }}
       >
         <h1 style={{ margin: 0 }}>Wallet</h1>
-        <Link
-          href="/wallet/deposit"
-          style={{
-            background: '#5b8def',
-            color: 'white',
-            padding: '0.5rem 1rem',
-            borderRadius: 6,
-            textDecoration: 'none',
-            fontWeight: 600,
-          }}
-        >
-          Deposit USDC →
-        </Link>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <Link
+            href="/wallet/withdraw"
+            style={{
+              background: 'transparent',
+              color: '#5b8def',
+              border: '1px solid #2c3036',
+              padding: '0.5rem 1rem',
+              borderRadius: 6,
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Withdraw
+          </Link>
+          <Link
+            href="/wallet/deposit"
+            style={{
+              background: '#5b8def',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: 6,
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            Deposit USDC →
+          </Link>
+        </div>
       </header>
 
       <BalanceCard
