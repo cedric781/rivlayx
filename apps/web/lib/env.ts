@@ -20,6 +20,18 @@ const BaseSchema = z.object({
    * page. Only the public address — never the private key.
    */
   PLATFORM_VAULT_ATA: z.string().min(32).max(64).optional(),
+  /**
+   * Sprint 31 — base58-encoded vault SECRET key used to sign withdrawal payouts
+   * on devnet. Secret: never displayed, never logged. Optional so dev/test runs
+   * (mock provider) and unconfigured prod don't fail boot; the withdrawal runner
+   * surfaces a permanent failure if a payout is attempted without it.
+   */
+  SOLANA_VAULT_SECRET_KEY: z.string().optional(),
+  /**
+   * Sprint 31 — USDC SPL mint for payouts. Devnet's USDC mint differs from
+   * mainnet; falls back to the canonical mainnet mint when unset.
+   */
+  SOLANA_USDC_MINT: z.string().min(32).max(64).optional(),
   // Sprint 6+ placeholders
   HELIUS_API_KEY: z.string().optional(),
   HELIUS_WEBHOOK_SECRET: z.string().optional(),

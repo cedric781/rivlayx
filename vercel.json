@@ -8,6 +8,7 @@
     { "path": "/api/cron/reputation?full=1", "schedule": "0 3 * * *" },
     { "path": "/api/cron/risk", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/risk?full=1", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/ops", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/ops", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/withdrawals", "schedule": "*/5 * * * *" }
   ]
 }
