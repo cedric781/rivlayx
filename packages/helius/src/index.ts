@@ -12,7 +12,13 @@ export {
   type ParsedTransfer,
   type ParseOptions,
 } from './parse';
-export { computeHeliusSignature, verifyHeliusSignature } from './verify';
+export {
+  computeHeliusSignature,
+  verifyHeliusSignature,
+  verifyHeliusBearer,
+  isHeliusWebhookAuthorized,
+  type HeliusWebhookAuthInput,
+} from './verify';
 export {
   type IHeliusRpc,
   type SignatureStatus,

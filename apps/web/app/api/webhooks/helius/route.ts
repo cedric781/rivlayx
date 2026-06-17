@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { USDC_MINT_ADDRESS } from '@rivlayx/shared';
 import {
   ParseError,
+  isHeliusWebhookAuthorized,
   parseSplTransfer,
-  verifyHeliusSignature,
   webhookEnvelopeSchema,
 } from '@rivlayx/helius';
 import { deposits as coreDeposits } from '@rivlayx/core';
@@ -15,6 +15,8 @@ export const dynamic = 'force-dynamic';
 
 /** Header carrying the HMAC-SHA256 hex signature of the raw body. */
 const SIGNATURE_HEADER = 'x-helius-signature';
+/** Helius's native webhook auth sends a static bearer via this header. */
+const AUTH_HEADER = 'authorization';
 const DEV_VAULT_ATA_FALLBACK = 'DevVaultAta11111111111111111111111111111111';
 
 /**
@@ -39,10 +41,18 @@ export async function POST(request: Request) {
   }
 
   const rawBody = await request.text();
-  const signature = request.headers.get(SIGNATURE_HEADER) ?? '';
-  if (!verifyHeliusSignature(secret, rawBody, signature)) {
+  // Accept EITHER a valid x-helius-signature HMAC over the raw body OR a
+  // matching `Authorization: Bearer <HELIUS_WEBHOOK_SECRET>`. Both checks are
+  // constant-time; neither valid → 401. The secret is never logged.
+  const authorized = isHeliusWebhookAuthorized({
+    secret,
+    rawBody,
+    signatureHeader: request.headers.get(SIGNATURE_HEADER),
+    authHeader: request.headers.get(AUTH_HEADER),
+  });
+  if (!authorized) {
     return NextResponse.json(
-      { error: { code: 'BAD_SIGNATURE', message: 'Invalid webhook signature' } },
+      { error: { code: 'UNAUTHORIZED', message: 'Invalid webhook authentication' } },
       { status: 401 },
     );
   }
