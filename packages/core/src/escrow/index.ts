@@ -16,3 +16,11 @@ export {
   type CreateOnchainTransferInput,
   type CreateOnchainTransferResult,
 } from './transfers';
+export {
+  StakeError,
+  prepareStake,
+  type StakeErrorCode,
+  type PrepareStakeInput,
+  type PrepareStakeResult,
+  type PrepareStakeOptions,
+} from './stake';
