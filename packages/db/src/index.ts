@@ -159,6 +159,7 @@ export {
   deposits,
   orphanDeposits,
   withdrawalRequests,
+  onchainTransfers,
   accountTypeValues,
   directionValues,
   ledgerReasonValues,
@@ -168,6 +169,8 @@ export {
   depositRejectionReasonValues,
   orphanDepositStatusValues,
   withdrawalRequestStatusValues,
+  onchainTransferTypeValues,
+  onchainTransferStatusValues,
 } from './schema/financial';
 export type {
   AccountType,
@@ -191,6 +194,10 @@ export type {
   WithdrawalRequest,
   NewWithdrawalRequest,
   WithdrawalRequestStatus,
+  OnchainTransfer,
+  NewOnchainTransfer,
+  OnchainTransferType,
+  OnchainTransferStatus,
 } from './schema/financial';
 
 // client

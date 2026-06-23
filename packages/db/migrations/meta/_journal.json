@@ -127,6 +127,13 @@
       "when": 1782213188993,
       "tag": "0017_grey_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782219718713,
+      "tag": "0018_zippy_the_stranger",
+      "breakpoints": true
     }
   ]
 }
