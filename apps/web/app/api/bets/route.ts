@@ -5,6 +5,7 @@ import { requireSession } from '@rivlayx/auth/next';
 import { getDb } from '@/lib/db';
 import { parseMarketplaceParams } from '@/lib/marketplace/params';
 import { buildOpenBetInput } from '@/lib/bets/open-bet';
+import { getBetEngineConfig } from '@/lib/bets/engine-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
   const input = buildOpenBetInput(user.id, parsed.data);
 
   try {
-    const result = await betEngine.createBet(getDb(), input);
+    const result = await betEngine.createBet(getDb(), input, getBetEngineConfig());
     return NextResponse.json(
       {
         bet: { id: result.bet.id, shortCode: result.bet.shortCode, status: result.bet.status },

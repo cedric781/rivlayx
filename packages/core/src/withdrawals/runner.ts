@@ -8,12 +8,21 @@ import { getBalance } from '../ledger/balances';
 import { isFrozen } from '../ledger/freeze';
 import { logAdminAction } from '../admin/audit-log';
 import type { LedgerDb } from '../ledger/types';
-import { checkDailyCap, checkWithdrawalAmount, nextWithdrawalBackoffMs } from './cap';
+import {
+  WITHDRAWAL_LIMITS,
+  checkDailyCap,
+  checkWithdrawalAmount,
+  coversAmount,
+  nextWithdrawalBackoffMs,
+  type WithdrawalLimits,
+} from './cap';
 import { withdrawnLast24hUsdc } from './query';
 
 export interface ProcessWithdrawalQueueOptions {
   limit?: number;
   now?: Date;
+  /** Cap source. Defaults to WITHDRAWAL_LIMITS when the caller passes none. */
+  limits?: WithdrawalLimits;
 }
 export interface ProcessWithdrawalQueueResult {
   candidatesSeen: number;
@@ -43,6 +52,7 @@ export async function processWithdrawalQueue(
   }
   const now = options.now ?? new Date();
   const limit = options.limit ?? 50;
+  const limits = options.limits ?? WITHDRAWAL_LIMITS;
 
   const candidates = await db
     .select()
@@ -55,7 +65,7 @@ export async function processWithdrawalQueue(
   let failedRetryable = 0;
   let failedPermanent = 0;
   for (const c of candidates) {
-    const r = await processOneWithdrawal(db, provider, c.id, { now });
+    const r = await processOneWithdrawal(db, provider, c.id, { now, limits });
     if (r.kind === 'paid') paid += 1;
     else if (r.kind === 'retryable_failure') failedRetryable += 1;
     else if (r.kind === 'permanent_failure') failedPermanent += 1;
@@ -73,9 +83,10 @@ export async function processOneWithdrawal(
   db: LedgerDb,
   provider: SolanaTransferProvider,
   requestId: string,
-  options: { now?: Date } = {},
+  options: { now?: Date; limits?: WithdrawalLimits } = {},
 ): Promise<ProcessOneWithdrawalResult> {
   const now = options.now ?? new Date();
+  const limits = options.limits ?? WITHDRAWAL_LIMITS;
 
   // ── 1. Claim: lock, re-check caps + balance, flip to 'processing' ──
   const claimed = await db.transaction(async (tx: LedgerDb) => {
@@ -89,19 +100,19 @@ export async function processOneWithdrawal(
     if (row.status !== 'approved') return null;
     if (row.nextAttemptAt.getTime() > now.getTime()) return null;
 
-    const amountCheck = checkWithdrawalAmount(row.amountUsdc);
+    const amountCheck = checkWithdrawalAmount(row.amountUsdc, limits.maxWithdrawUsdc);
     if (!amountCheck.ok) {
       await markFailed(tx, row, amountCheck.message, now);
       return { kind: 'failed' as const, message: amountCheck.message };
     }
     const prior = await withdrawnLast24hUsdc(tx, row.userId, now, row.id);
-    const dailyCheck = checkDailyCap(prior, row.amountUsdc);
+    const dailyCheck = checkDailyCap(prior, row.amountUsdc, limits.maxDailyUsdc);
     if (!dailyCheck.ok) {
       await markFailed(tx, row, dailyCheck.message, now);
       return { kind: 'failed' as const, message: dailyCheck.message };
     }
     const balance = await getBalance(tx, row.userId);
-    if (Number(balance?.availableUsdc ?? '0') < Number(row.amountUsdc)) {
+    if (!coversAmount(balance?.availableUsdc ?? '0', row.amountUsdc)) {
       const msg = 'available balance no longer covers this withdrawal';
       await markFailed(tx, row, msg, now);
       return { kind: 'failed' as const, message: msg };

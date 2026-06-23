@@ -4,8 +4,10 @@ export {
   checkWithdrawalAmount,
   checkDailyCap,
   nextWithdrawalBackoffMs,
+  coversAmount,
   type CapCheck,
   type WithdrawalCapCode,
+  type WithdrawalLimits,
 } from './cap';
 export { withdrawnLast24hUsdc } from './query';
 export {

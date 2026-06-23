@@ -7,6 +7,10 @@ const BaseSchema = z.object({
   MAX_TVL_USDC: z.coerce.number().int().positive().default(1000),
   MIN_DEPOSIT_USDC: z.coerce.number().positive().default(5),
   MAX_SINGLE_DEPOSIT_USDC: z.coerce.number().positive().default(250),
+  // Withdrawal caps — single source consumed by request + approve + runner via
+  // @rivlayx/core WithdrawalLimits. Closed-alpha defaults mirror WITHDRAWAL_LIMITS.
+  MAX_WITHDRAW_USDC: z.coerce.number().positive().default(25),
+  MAX_DAILY_WITHDRAW_USDC: z.coerce.number().positive().default(100),
   PORT: z.coerce.number().int().positive().default(3000),
   // Privy — required in production (real flow). Optional in dev/test so mock provider works.
   PRIVY_APP_ID: z.string().optional(),

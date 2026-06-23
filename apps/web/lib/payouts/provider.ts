@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// FROZEN UNTIL PRIVY CUTOVER — raw-vault signer selector.
+// `buildTransferProvider` is the single place that picks a signer. Do NOT add a
+// second signer path here or run raw-vault and Privy side by side. The Privy
+// migration REPLACES the body of this one function; until then this raw-vault
+// path stays as the only signer (see payment-cleanup-before-zentrix audit).
+// ─────────────────────────────────────────────────────────────────────────────
 import { payouts } from '@rivlayx/core';
 import { USDC_MINT_ADDRESS } from '@rivlayx/shared';
 import { getEnv } from '@/lib/env';

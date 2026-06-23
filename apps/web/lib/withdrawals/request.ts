@@ -1,5 +1,5 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { ledger } from '@rivlayx/core';
+import { ledger, withdrawals } from '@rivlayx/core';
 import { withdrawalRequests, type WithdrawalRequest } from '@rivlayx/db';
 
 /**
@@ -33,19 +33,19 @@ export class WithdrawalError extends Error {
 const AMOUNT_RE = /^\d+(\.\d{1,6})?$/;
 /** Base58 Solana address, 32..44 chars. */
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-/**
- * Per-withdrawal hard cap, USDC. Mirrors `@rivlayx/core` WITHDRAWAL_LIMITS
- * .maxWithdrawUsdc — which stays authoritative at approve + payout time. This
- * is the request-time guard so a user gets immediate feedback instead of the
- * cap only surfacing later in the admin queue.
- */
-const MAX_WITHDRAW_USDC = '25';
 
 export interface ValidateWithdrawalInput {
   amountUsdc: string;
   destinationWallet: string;
   availableUsdc: string;
   withdrawalsFrozen: boolean;
+  /**
+   * Per-withdrawal cap (USDC). Defaults to the core WITHDRAWAL_LIMITS source so
+   * request, approve and runner all enforce one cap; production passes the
+   * env-resolved value. This is the request-time guard so a user gets immediate
+   * feedback instead of the cap only surfacing later in the admin queue.
+   */
+  maxWithdrawUsdc?: string;
 }
 
 export type ValidateResult = { ok: true } | { ok: false; code: WithdrawalErrorCode; message: string };
@@ -59,20 +59,27 @@ export function validateWithdrawalInput(input: ValidateWithdrawalInput): Validat
     return { ok: false, code: 'FROZEN', message: 'Withdrawals are temporarily paused.' };
   }
   const amount = input.amountUsdc.trim();
-  if (!AMOUNT_RE.test(amount) || Number(amount) <= 0) {
+  // Shape first (≤6 decimals, no sign/garbage); the numeric >0 + cap checks are
+  // delegated to core so request shares one Decimal-exact cap source.
+  if (!AMOUNT_RE.test(amount)) {
     return { ok: false, code: 'INVALID_INPUT', message: 'Enter a valid USDC amount.' };
   }
-  if (Number(amount) > Number(MAX_WITHDRAW_USDC)) {
-    return {
-      ok: false,
-      code: 'AMOUNT_EXCEEDS_CAP',
-      message: `Amount exceeds the ${MAX_WITHDRAW_USDC} USDC per-withdrawal limit.`,
-    };
+  const maxWithdrawUsdc = input.maxWithdrawUsdc ?? withdrawals.WITHDRAWAL_LIMITS.maxWithdrawUsdc;
+  const amountCheck = withdrawals.checkWithdrawalAmount(amount, maxWithdrawUsdc);
+  if (!amountCheck.ok) {
+    if (amountCheck.code === 'AMOUNT_EXCEEDS_CAP') {
+      return {
+        ok: false,
+        code: 'AMOUNT_EXCEEDS_CAP',
+        message: `Amount exceeds the ${maxWithdrawUsdc} USDC per-withdrawal limit.`,
+      };
+    }
+    return { ok: false, code: 'INVALID_INPUT', message: 'Enter a valid USDC amount.' };
   }
   if (!SOLANA_ADDRESS_RE.test(input.destinationWallet.trim())) {
     return { ok: false, code: 'INVALID_INPUT', message: 'Enter a valid Solana wallet address.' };
   }
-  if (Number(amount) > Number(input.availableUsdc)) {
+  if (!withdrawals.coversAmount(input.availableUsdc, amount)) {
     return {
       ok: false,
       code: 'INSUFFICIENT_BALANCE',
@@ -86,6 +93,12 @@ export interface RequestWithdrawalInput {
   userId: string;
   amountUsdc: string;
   destinationWallet: string;
+  /**
+   * Per-withdrawal cap (USDC). The HTTP route resolves this from env via
+   * `getWithdrawalLimits()`; when omitted (tests/dev) it defaults to the core
+   * WITHDRAWAL_LIMITS source. Kept as a param so this layer reads no env.
+   */
+  maxWithdrawUsdc?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,6 +122,7 @@ export async function requestWithdrawal(
     destinationWallet: input.destinationWallet,
     availableUsdc,
     withdrawalsFrozen,
+    maxWithdrawUsdc: input.maxWithdrawUsdc,
   });
   if (!check.ok) throw new WithdrawalError(check.code, check.message);
 

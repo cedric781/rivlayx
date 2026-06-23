@@ -3,6 +3,7 @@ import { withdrawals, cron, ops } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { requireCron } from '@/lib/auth/require-cron';
 import { buildTransferProvider } from '@/lib/payouts/provider';
+import { getWithdrawalLimits } from '@/lib/withdrawals/limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,9 +18,10 @@ export async function GET(request: Request) {
 
   const db = getDb();
   const provider = buildTransferProvider();
+  const limits = getWithdrawalLimits();
   const locked = await ops.recordCronRun(db, 'withdrawals', () =>
     cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.withdrawals, async () =>
-      withdrawals.processWithdrawalQueue(db, provider),
+      withdrawals.processWithdrawalQueue(db, provider, { limits }),
     ),
   );
 

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withdrawals } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { requireAdminApi } from '@/lib/auth/require-admin-api';
+import { getEnv } from '@/lib/env';
 
 const UUID = z.string().uuid();
 
@@ -35,10 +36,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!auth.ok) return auth.response;
 
   try {
+    const env = getEnv();
     const result = await withdrawals.approveWithdrawal(getDb(), {
       requestId: parsedId.data,
       adminUserId: auth.user.id,
       actorRole: auth.actorRole,
+      limits: {
+        maxWithdrawUsdc: String(env.MAX_WITHDRAW_USDC),
+        maxDailyUsdc: String(env.MAX_DAILY_WITHDRAW_USDC),
+      },
     });
     return NextResponse.json({ ok: true, withdrawal: { id: result.id, status: result.status } });
   } catch (err) {

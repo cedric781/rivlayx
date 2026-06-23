@@ -1,3 +1,10 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// FROZEN UNTIL PRIVY CUTOVER — raw-vault signer.
+// This is the legacy raw-keypair (SOLANA_VAULT_SECRET_KEY) signing path. Do NOT
+// extend it, do not add a second signer path, and do not wire it to mainnet.
+// It is the ONLY active signer today and stays until a proven Privy replacement
+// lands; it is removed at cutover (see payment-cleanup-before-zentrix audit).
+// ─────────────────────────────────────────────────────────────────────────────
 import bs58 from 'bs58';
 import {
   Connection,

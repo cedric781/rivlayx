@@ -5,7 +5,13 @@ import { isFrozen } from '../ledger/freeze';
 import { getBalance } from '../ledger/balances';
 import type { LedgerDb } from '../ledger/types';
 import { WithdrawalError } from './errors';
-import { checkDailyCap, checkWithdrawalAmount } from './cap';
+import {
+  WITHDRAWAL_LIMITS,
+  checkDailyCap,
+  checkWithdrawalAmount,
+  coversAmount,
+  type WithdrawalLimits,
+} from './cap';
 import { withdrawnLast24hUsdc } from './query';
 
 export interface ApproveWithdrawalInput {
@@ -13,6 +19,8 @@ export interface ApproveWithdrawalInput {
   adminUserId: string;
   actorRole?: string | null;
   now?: Date;
+  /** Cap source. Defaults to WITHDRAWAL_LIMITS when the caller passes none. */
+  limits?: WithdrawalLimits;
 }
 
 /**
@@ -26,6 +34,7 @@ export async function approveWithdrawal(
   input: ApproveWithdrawalInput,
 ): Promise<WithdrawalRequest> {
   const now = input.now ?? new Date();
+  const limits = input.limits ?? WITHDRAWAL_LIMITS;
 
   if (await isFrozen(db, 'withdrawals')) {
     throw new WithdrawalError('FROZEN', 'Withdrawals are frozen — cannot approve.');
@@ -43,15 +52,15 @@ export async function approveWithdrawal(
       throw new WithdrawalError('WRONG_STATUS', `withdrawal is ${row.status}, not pending_review`);
     }
 
-    const amountCheck = checkWithdrawalAmount(row.amountUsdc);
+    const amountCheck = checkWithdrawalAmount(row.amountUsdc, limits.maxWithdrawUsdc);
     if (!amountCheck.ok) throw new WithdrawalError(amountCheck.code, amountCheck.message);
 
     const prior = await withdrawnLast24hUsdc(tx, row.userId, now, row.id);
-    const dailyCheck = checkDailyCap(prior, row.amountUsdc);
+    const dailyCheck = checkDailyCap(prior, row.amountUsdc, limits.maxDailyUsdc);
     if (!dailyCheck.ok) throw new WithdrawalError(dailyCheck.code, dailyCheck.message);
 
     const balance = await getBalance(tx, row.userId);
-    if (Number(balance?.availableUsdc ?? '0') < Number(row.amountUsdc)) {
+    if (!coversAmount(balance?.availableUsdc ?? '0', row.amountUsdc)) {
       throw new WithdrawalError('INSUFFICIENT_BALANCE', 'Available balance no longer covers this.');
     }
 

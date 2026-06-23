@@ -54,6 +54,23 @@ describe('apps/web env validation', () => {
     expect(() => loadEnv({ ...valid, MAX_SINGLE_DEPOSIT_USDC: '-1' })).toThrow();
   });
 
+  it('defaults withdrawal caps to 25 and 100', () => {
+    const env = loadEnv(valid);
+    expect(env.MAX_WITHDRAW_USDC).toBe(25);
+    expect(env.MAX_DAILY_WITHDRAW_USDC).toBe(100);
+  });
+
+  it('coerces withdrawal caps from strings', () => {
+    const env = loadEnv({ ...valid, MAX_WITHDRAW_USDC: '40', MAX_DAILY_WITHDRAW_USDC: '250' });
+    expect(env.MAX_WITHDRAW_USDC).toBe(40);
+    expect(env.MAX_DAILY_WITHDRAW_USDC).toBe(250);
+  });
+
+  it('rejects non-positive withdrawal caps', () => {
+    expect(() => loadEnv({ ...valid, MAX_WITHDRAW_USDC: '0' })).toThrow();
+    expect(() => loadEnv({ ...valid, MAX_DAILY_WITHDRAW_USDC: '-1' })).toThrow();
+  });
+
   it('defaults SOLANA_NETWORK to devnet', () => {
     const env = loadEnv(valid);
     expect(env.SOLANA_NETWORK).toBe('devnet');

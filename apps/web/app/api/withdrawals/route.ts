@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireSession } from '@rivlayx/auth/next';
 import { getDb } from '@/lib/db';
 import { WithdrawalError, requestWithdrawal } from '@/lib/withdrawals/request';
+import { getWithdrawalLimits } from '@/lib/withdrawals/limits';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
       userId: user.id,
       amountUsdc: parsed.data.amountUsdc,
       destinationWallet: parsed.data.destinationWallet,
+      maxWithdrawUsdc: getWithdrawalLimits().maxWithdrawUsdc,
     });
     return NextResponse.json(
       {

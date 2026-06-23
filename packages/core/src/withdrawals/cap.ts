@@ -19,6 +19,26 @@ export type WithdrawalCapCode = 'INVALID_INPUT' | 'AMOUNT_EXCEEDS_CAP' | 'DAILY_
 
 export type CapCheck = { ok: true } | { ok: false; code: WithdrawalCapCode; message: string };
 
+/**
+ * The two per-deployment withdrawal caps (USDC decimal strings). The single
+ * typed shape that the web boundary resolves from env and threads into approve
+ * + runner, so request, approve and runner all enforce one cap source.
+ * Defaults live in `WITHDRAWAL_LIMITS`.
+ */
+export interface WithdrawalLimits {
+  maxWithdrawUsdc: string;
+  maxDailyUsdc: string;
+}
+
+/**
+ * Decimal-exact balance coverage. True when `availableUsdc` fully covers
+ * `amountUsdc`. This is the single money comparison shared by request, approve
+ * and runner so no withdrawal path ever compares USDC as a JS float.
+ */
+export function coversAmount(availableUsdc: string, amountUsdc: string): boolean {
+  return new Decimal(availableUsdc || '0').gte(new Decimal(amountUsdc || '0'));
+}
+
 /** Per-request amount validation: finite, > 0, ≤ maxWithdrawUsdc. Pure. */
 export function checkWithdrawalAmount(
   amountUsdc: string,
