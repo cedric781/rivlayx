@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { userRoles, users, wallets, type NewUser } from '@rivlayx/db';
 import { profiles } from '@rivlayx/core';
 import type { VerifiedIdentity } from '@rivlayx/auth';
@@ -50,6 +50,11 @@ export async function upsertUserFromIdentity(db: Db, identity: VerifiedIdentity)
           .set({
             address: identity.walletAddress,
             source: identity.walletSource,
+            delegated: identity.delegated ?? false,
+            // Preserve the first grant timestamp; only stamp when newly delegated.
+            delegationGrantedAt: identity.delegated
+              ? sql`COALESCE(${wallets.delegationGrantedAt}, now())`
+              : null,
           })
           .where(eq(wallets.userId, existing[0].id));
       }
@@ -74,6 +79,8 @@ export async function upsertUserFromIdentity(db: Db, identity: VerifiedIdentity)
       address: identity.walletAddress,
       source: identity.walletSource,
       isPrimary: true,
+      delegated: identity.delegated ?? false,
+      delegationGrantedAt: identity.delegated ? new Date() : null,
     });
     await tx.insert(userRoles).values({ userId: newId, role: 'user' });
     return newId;

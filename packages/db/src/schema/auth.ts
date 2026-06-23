@@ -82,6 +82,11 @@ export const wallets = authSchema.table(
     address: varchar('address', { length: 64 }).notNull(),
     source: varchar('source', { length: 24, enum: walletSourceValues }).notNull(),
     isPrimary: boolean('is_primary').notNull().default(false),
+    // ── Privy migration (Phase 1): delegated-signing readiness ──────────────
+    // Records whether the user has granted Privy delegated-signing on this
+    // embedded wallet. Storage only — no signing logic is wired in Phase 1.
+    delegated: boolean('delegated').notNull().default(false),
+    delegationGrantedAt: timestamp('delegation_granted_at', { withTimezone: true }),
     linkedAt: timestamp('linked_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

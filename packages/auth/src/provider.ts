@@ -14,6 +14,11 @@ export interface VerifiedIdentity {
   email: string;
   walletAddress: string;
   walletSource: WalletSource;
+  /**
+   * Whether the embedded wallet has Privy delegated-signing granted. Optional —
+   * absent/false until the user grants it. Storage-only in Phase 1 (no signing).
+   */
+  delegated?: boolean;
 }
 
 /**
