@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   bigserial,
   boolean,
   check,
   index,
   inet,
+  integer,
   jsonb,
   pgSchema,
   primaryKey,
@@ -48,6 +50,17 @@ export const users = authSchema.table(
     displayName: varchar('display_name', { length: 80 }),
     status: varchar('status', { length: 16, enum: userStatusValues }).notNull().default('active'),
     mfaRequired: boolean('mfa_required').notNull().default(false),
+    // ── C5: real TOTP MFA (per-admin) ──────────────────────────────────────
+    /** AES-256-GCM blob of the TOTP secret. Null until enrollment begins. */
+    mfaSecretEncrypted: text('mfa_secret_encrypted'),
+    /** Set on the first successful TOTP verification (enrollment complete). */
+    mfaEnrolledAt: timestamp('mfa_enrolled_at', { withTimezone: true }),
+    /** Highest TOTP step consumed — replay guard (a step ≤ this is rejected). */
+    mfaLastVerifiedStep: bigint('mfa_last_verified_step', { mode: 'number' }),
+    /** Consecutive failed TOTP attempts since the last success (rate limiting). */
+    mfaFailedAttempts: integer('mfa_failed_attempts').notNull().default(0),
+    /** When set and in the future, TOTP verification is locked out. */
+    mfaLockedUntil: timestamp('mfa_locked_until', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

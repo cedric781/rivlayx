@@ -113,6 +113,13 @@
       "when": 1781639093741,
       "tag": "0015_low_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782206767288,
+      "tag": "0016_many_red_ghost",
+      "breakpoints": true
     }
   ]
 }
