@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm';
 import { deposits, type DepositStatus } from '@rivlayx/db';
 import type { IHeliusRpc } from '@rivlayx/helius';
 import type { LedgerDb } from '../ledger/types';
-import { REQUIRED_CONFIRMATIONS } from './config';
 
 export type ConfirmResult =
   | { kind: 'confirmed'; depositId: string; confirmations: number }
@@ -17,10 +16,17 @@ export type ConfirmResult =
  *   - Status not 'pending'              → no-op, returns 'wrong_status'.
  *   - RPC has no record yet             → 'still_pending'.
  *   - RPC reports tx error              → marks deposit 'rejected', reason
- *                                          'tx_failed_on_chain'.
+ *                                          'tx_failed_on_chain' (err is checked
+ *                                          before finality, since a finalized tx
+ *                                          can still carry an instruction error).
  *   - confirmationStatus = 'finalized'  → status='confirmed', confirmed_at set.
- *   - confirmations < REQUIRED          → 'still_pending', confirmations updated.
- *   - confirmations ≥ REQUIRED          → status='confirmed'.
+ *   - any lower commitment ('confirmed'/'processed') or no commitment yet
+ *                                       → 'still_pending', confirmations updated.
+ *
+ * C6A: finality is gated STRICTLY on `confirmationStatus === 'finalized'`. A raw
+ * confirmations count is no longer accepted as a credit signal — Solana reports
+ * `confirmations: null` once finalized, and a high count at 'confirmed' is still
+ * rollback-able. Crediting therefore happens only at rooted/finalized state.
  *
  * Pure orchestration; the RPC is injected for testability.
  */
@@ -49,9 +55,7 @@ export async function confirmDeposit(
     return { kind: 'tx_failed', depositId, error: JSON.stringify(status.err) };
   }
 
-  const finalized =
-    status.confirmationStatus === 'finalized' ||
-    (status.confirmations !== null && status.confirmations >= REQUIRED_CONFIRMATIONS);
+  const finalized = status.confirmationStatus === 'finalized';
 
   if (!finalized) {
     const conf = status.confirmations ?? 0;
@@ -59,7 +63,9 @@ export async function confirmDeposit(
     return { kind: 'still_pending', depositId, confirmations: conf };
   }
 
-  const conf = status.confirmations ?? REQUIRED_CONFIRMATIONS;
+  // Finalized: confirmations is typically null at rooted state — report the
+  // actual count when present, else 0 (the count is informational past finality).
+  const conf = status.confirmations ?? 0;
   await db
     .update(deposits)
     .set({ status: 'confirmed', confirmations: conf, confirmedAt: new Date() })

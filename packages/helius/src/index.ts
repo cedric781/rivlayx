@@ -27,6 +27,7 @@ export {
   type SignaturesForAddressOptions,
 } from './rpc-interface';
 export { MockHeliusRpc } from './mock-rpc';
+export { RealHeliusRpc } from './real-rpc';
 export {
   buildMockTokenTransfer,
   buildSignedEnvelope,
