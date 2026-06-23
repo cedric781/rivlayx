@@ -1,45 +1,20 @@
-import type {
-  IHeliusRpc,
-  SignatureStatus,
-  SignatureInfo,
-  TokenAccountBalance,
-} from '@rivlayx/helius';
+import { RealHeliusRpc, type IHeliusRpc } from '@rivlayx/helius';
+import { getEnv } from '@/lib/env';
 
 /**
- * Deposit-confirmation RPC for the Helius webhook ingress (Sprint 30).
+ * Single construction point for the live Solana RPC client used by the deposit
+ * poller (`/api/cron/deposits`) and on-chain reconciliation (`/api/cron/recon`).
  *
- * Helius **enhanced transaction webhooks** are delivered only after the
- * configured commitment (we run them at `finalized`), and every inbound batch
- * is HMAC-authenticated at the route boundary. For that trusted, finalized
- * source we treat the webhook delivery itself as the finality signal: any
- * signature we were just handed reports `finalized`. This lets the existing
- * `detectDeposit → confirmDeposit → creditDeposit` pipeline run unchanged
- * without an extra RPC round-trip.
+ * C6B/C: the old `WebhookFinalityRpc` (which faked `finalized`) is gone. Deposit
+ * finality is now verified independently via `RealHeliusRpc.getSignatureStatus`,
+ * and credit happens only through the poller — never from webhook delivery.
  *
- * Trade-off (documented closed-alpha posture): we trust Helius finality rather
- * than independently re-checking on chain. An independent `getSignatureStatuses`
- * re-check is a later hardening step — it does not change this pipeline, only
- * which `IHeliusRpc` is injected here.
- *
- * Only `getSignatureStatus` is exercised by the deposit-confirm path; the other
- * interface methods are not used in webhook ingestion and throw if called.
+ * Returns `null` when `SOLANA_RPC_URL` is unset (dev/test), so callers can skip
+ * gracefully instead of crediting on a fabricated status. `SOLANA_RPC_URL` is
+ * required in production (see `apps/web/lib/env.ts`).
  */
-export class WebhookFinalityRpc implements IHeliusRpc {
-  async getSignatureStatus(signature: string): Promise<SignatureStatus | null> {
-    return {
-      signature,
-      confirmationStatus: 'finalized',
-      confirmations: null,
-      slot: null,
-      err: null,
-    };
-  }
-
-  async getTokenAccountBalance(_address: string): Promise<TokenAccountBalance> {
-    throw new Error('getTokenAccountBalance is not used by webhook deposit ingestion');
-  }
-
-  async getSignaturesForAddress(_address: string): Promise<SignatureInfo[]> {
-    throw new Error('getSignaturesForAddress is not used by webhook deposit ingestion');
-  }
+export function buildHeliusRpc(): IHeliusRpc | null {
+  const env = getEnv();
+  if (!env.SOLANA_RPC_URL) return null;
+  return new RealHeliusRpc(env.SOLANA_RPC_URL);
 }

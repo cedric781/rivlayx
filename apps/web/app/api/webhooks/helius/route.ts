@@ -9,7 +9,6 @@ import {
 import { deposits as coreDeposits } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { getEnv } from '@/lib/env';
-import { WebhookFinalityRpc } from '@/lib/helius/rpc';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,15 +19,16 @@ const AUTH_HEADER = 'authorization';
 const DEV_VAULT_ATA_FALLBACK = 'DevVaultAta11111111111111111111111111111111';
 
 /**
- * Real deposit ingress (Sprint 30). Receives a Helius enhanced TOKEN_TRANSFER
- * webhook batch, authenticates it (HMAC-SHA256 over the raw body), then runs
- * each transfer through the EXISTING deposit pipeline:
+ * Real deposit ingress (Sprint 30; C6C: detect-only). Receives a Helius enhanced
+ * TOKEN_TRANSFER webhook batch, authenticates it (HMAC-SHA256 over the raw body
+ * OR a matching bearer), then runs each transfer through DETECTION only:
  *
- *   parseSplTransfer → detectDeposit → confirmDeposit → creditDeposit
+ *   parseSplTransfer → detectDeposit  (→ persist a `pending` row, or orphan/duplicate)
  *
- * No new ledger logic — this route only authenticates, parses, and orchestrates
- * the existing engine. Confirmation trusts the finalized, authenticated webhook
- * (see WebhookFinalityRpc).
+ * It does NOT confirm, credit, or move any balance. Finality is never trusted
+ * from webhook delivery — crediting happens exclusively in the deposit poller
+ * (`/api/cron/deposits`) after independent `finalized` RPC verification. Dedup on
+ * `tx_signature` makes webhook retries / replays a no-op.
  */
 export async function POST(request: Request) {
   const env = getEnv();
@@ -75,7 +75,6 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
-  const rpc = new WebhookFinalityRpc();
   const vaultAta = env.PLATFORM_VAULT_ATA ?? DEV_VAULT_ATA_FALLBACK;
   const config = {
     minDepositUsdc: String(env.MIN_DEPOSIT_USDC),
@@ -84,7 +83,7 @@ export async function POST(request: Request) {
     expectedDestAta: vaultAta,
   };
 
-  const result = { received: parsed.data.length, credited: 0, skipped: 0, pending: 0 };
+  const result = { received: parsed.data.length, detected: 0, rejected: 0, orphan: 0, duplicate: 0, skipped: 0 };
   const outcomes: Array<{ signature: string; stage: string; kind: string }> = [];
 
   for (const event of parsed.data) {
@@ -105,24 +104,14 @@ export async function POST(request: Request) {
       continue;
     }
 
+    // Detect-only: persist a pending row (or orphan / rejected), dedup on
+    // tx_signature. NO confirm, NO credit — the poller does that after finality.
     const detect = await coreDeposits.detectDeposit(db, transfer, config, event);
-    if (detect.kind !== 'deposit') {
-      result.skipped += 1;
-      outcomes.push({ signature: transfer.signature, stage: 'detect', kind: detect.kind });
-      continue;
-    }
-
-    const confirm = await coreDeposits.confirmDeposit(db, rpc, detect.depositId);
-    if (confirm.kind !== 'confirmed') {
-      result.pending += 1;
-      outcomes.push({ signature: transfer.signature, stage: 'confirm', kind: confirm.kind });
-      continue;
-    }
-
-    const credit = await coreDeposits.creditDeposit(db, detect.depositId);
-    if (credit.kind === 'credited') result.credited += 1;
-    else result.skipped += 1;
-    outcomes.push({ signature: transfer.signature, stage: 'credit', kind: credit.kind });
+    if (detect.kind === 'deposit') result.detected += 1;
+    else if (detect.kind === 'deposit_rejected') result.rejected += 1;
+    else if (detect.kind === 'orphan') result.orphan += 1;
+    else if (detect.kind === 'duplicate') result.duplicate += 1;
+    outcomes.push({ signature: transfer.signature, stage: 'detect', kind: detect.kind });
   }
 
   return NextResponse.json({ ok: true, ...result, outcomes });

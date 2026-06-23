@@ -4,3 +4,8 @@ export { detectDeposit, type DetectResult } from './detect';
 export { confirmDeposit, type ConfirmResult } from './confirm';
 export { creditDeposit, type CreditResult } from './credit';
 export { reconcileVault, type VaultReconciliationInput } from './reconcile';
+export {
+  processPendingDeposits,
+  type ProcessPendingDepositsOptions,
+  type ProcessPendingDepositsResult,
+} from './poll';

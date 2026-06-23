@@ -17,6 +17,7 @@ export const CRON_LOCK_KEYS = {
   risk: 920_005,
   ops: 920_006,
   withdrawals: 920_007,
+  deposits: 920_008,
 } as const;
 
 /**
