@@ -24,3 +24,11 @@ export {
   type PrepareStakeResult,
   type PrepareStakeOptions,
 } from './stake';
+export {
+  PayoutError,
+  preparePayout,
+  type PayoutErrorCode,
+  type PreparePayoutInput,
+  type PreparePayoutResult,
+  type PreparePayoutOptions,
+} from './payout';
