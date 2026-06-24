@@ -32,3 +32,11 @@ export {
   type PreparePayoutResult,
   type PreparePayoutOptions,
 } from './payout';
+export {
+  WithdrawError,
+  prepareWithdrawal,
+  type WithdrawErrorCode,
+  type PrepareWithdrawalInput,
+  type PrepareWithdrawalResult,
+  type PrepareWithdrawalOptions,
+} from './withdraw';
