@@ -6,6 +6,13 @@ export {
 } from './config';
 export { transferIdempotencyKey } from './idempotency';
 export {
+  reconcileTransferFinality,
+  type FinalityChecker,
+  type FinalityStatus,
+  type ReconcileFinalityOptions,
+  type FinalityResult,
+} from './finality';
+export {
   OnchainTransferError,
   createTransferRecord,
   getTransfer,
