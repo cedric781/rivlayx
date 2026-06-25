@@ -40,3 +40,9 @@ export {
   type PrepareWithdrawalResult,
   type PrepareWithdrawalOptions,
 } from './withdraw';
+export {
+  reconcileEscrow,
+  type EscrowReconciliationStatus,
+  type EscrowReconciliationInput,
+  type EscrowReconciliationResult,
+} from './reconcile';
