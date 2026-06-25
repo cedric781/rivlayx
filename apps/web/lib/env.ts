@@ -12,6 +12,32 @@ const BaseSchema = z.object({
   MAX_WITHDRAW_USDC: z.coerce.number().positive().default(25),
   MAX_DAILY_WITHDRAW_USDC: z.coerce.number().positive().default(100),
   PORT: z.coerce.number().int().positive().default(3000),
+  /**
+   * Privy payment migration (Phase 4 wiring) — selects the transfer signer
+   * backend. `raw-vault` (default) keeps exact current behavior; `privy` selects
+   * the already-built delegated-signing provider. An unknown value is rejected
+   * at boot. This is a flag only — NOT a production cutover; the default never
+   * changes here.
+   */
+  PAYMENT_BACKEND: z.enum(['raw-vault', 'privy']).default('raw-vault'),
+  /**
+   * Central escrow wallet owner address (base58). Allowlisted stake destination
+   * for the Privy provider's transfer policy. Optional: only consumed when
+   * PAYMENT_BACKEND=privy; absent → the privy provider stays gated.
+   */
+  ESCROW_WALLET: z.string().min(32).max(64).optional(),
+  /**
+   * Relayer pubkey (base58) set as the Privy transfer fee payer (pays SOL, never
+   * the authority). Optional: only consumed when PAYMENT_BACKEND=privy.
+   */
+  SOLANA_RELAYER_PUBKEY: z.string().min(32).max(64).optional(),
+  /**
+   * Public USDC ATA of the central escrow wallet. Read-only input to the escrow
+   * reconciliation cron leg (parallels PLATFORM_VAULT_ATA for the deposit vault).
+   * Only the public address — never a private key. Absent → escrow recon leg is
+   * skipped.
+   */
+  ESCROW_VAULT_ATA: z.string().min(32).max(64).optional(),
   // Privy — required in production (real flow). Optional in dev/test so mock provider works.
   PRIVY_APP_ID: z.string().optional(),
   NEXT_PUBLIC_PRIVY_APP_ID: z.string().optional(),

@@ -85,6 +85,18 @@ describe('apps/web env validation', () => {
     expect(() => loadEnv({ ...valid, SOLANA_NETWORK: 'localnet' })).toThrow();
   });
 
+  it('defaults PAYMENT_BACKEND to raw-vault', () => {
+    expect(loadEnv(valid).PAYMENT_BACKEND).toBe('raw-vault');
+  });
+
+  it('accepts PAYMENT_BACKEND=privy', () => {
+    expect(loadEnv({ ...valid, PAYMENT_BACKEND: 'privy' }).PAYMENT_BACKEND).toBe('privy');
+  });
+
+  it('rejects an unknown PAYMENT_BACKEND', () => {
+    expect(() => loadEnv({ ...valid, PAYMENT_BACKEND: 'stripe' })).toThrow(/PAYMENT_BACKEND/);
+  });
+
   it('allows missing Privy keys outside production', () => {
     expect(() => loadEnv({ ...valid })).not.toThrow();
   });

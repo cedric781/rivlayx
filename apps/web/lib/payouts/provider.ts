@@ -1,40 +1,158 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FROZEN UNTIL PRIVY CUTOVER — raw-vault signer selector.
-// `buildTransferProvider` is the single place that picks a signer. Do NOT add a
-// second signer path here or run raw-vault and Privy side by side. The Privy
-// migration REPLACES the body of this one function; until then this raw-vault
-// path stays as the only signer (see payment-cleanup-before-zentrix audit).
+// Transfer signer selector (Phase 4 wiring — flag-gated, NOT a cutover).
+// `buildTransferProvider` is the single place that picks a signer. Exactly ONE
+// backend is active per deploy, chosen by `PAYMENT_BACKEND` (default raw-vault);
+// raw-vault and Privy never run side by side. The Privy path stays GATED until
+// the delegated signer is injected at cutover (see payment-cleanup audit).
 // ─────────────────────────────────────────────────────────────────────────────
 import { payouts } from '@rivlayx/core';
 import { USDC_MINT_ADDRESS } from '@rivlayx/shared';
-import { getEnv } from '@/lib/env';
+import { getEnv, type Env } from '../env';
+
+/** Solana system-program id — placeholder fee payer for the gated privy path. */
+const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
+
+export interface BuildTransferProviderDeps {
+  /** Override the resolved env (tests). */
+  env?: Env;
+  /**
+   * Delegated Privy signer. Injected by tests and (later) at cutover. Omitted
+   * pre-cutover → the privy provider is assembled GATED and signs nothing.
+   */
+  privySigner?: payouts.PrivySolanaSigner;
+}
 
 /**
- * Resolve the Solana transfer provider used by the withdrawal + payout runners.
- *
- *   - dev / test → MockSolanaTransferProvider (deterministic, idempotent).
- *   - production + devnet → real DevnetSolanaTransferProvider (signs with the
- *     configured vault key; submits a real USDC SPL transfer on devnet).
- *   - production + mainnet-beta → kept GATED: returned provider fails every
- *     payout permanently. Mainnet requires signer hardening (KMS/HSM), which is
- *     a separate track and intentionally out of scope here.
+ * Gated delegated signer: rejects every signing attempt permanently. Used when
+ * PAYMENT_BACKEND=privy is selected before a real signer is wired — it mirrors
+ * the mainnet-beta raw-vault gate (returned provider fails permanently). In
+ * practice the empty-allowlist policy denies first, so this is a second guard.
  */
-export function buildTransferProvider(): payouts.SolanaTransferProvider {
-  const env = getEnv();
+const GATED_PRIVY_SIGNER: payouts.PrivySolanaSigner = {
+  signAndSend() {
+    return Promise.reject(
+      new payouts.TransferPermanentError('privy delegated signer not wired (cutover step)'),
+    );
+  },
+};
 
+/** Assemble the already-built Privy provider from env + an (optional) signer. */
+function buildPrivyTransferProvider(
+  env: Env,
+  signer?: payouts.PrivySolanaSigner,
+): payouts.SolanaTransferProvider {
+  const usdcMint = env.SOLANA_USDC_MINT ?? USDC_MINT_ADDRESS;
+  const caip2 =
+    env.SOLANA_NETWORK === 'mainnet-beta'
+      ? payouts.SOLANA_CAIP2.mainnet
+      : payouts.SOLANA_CAIP2.devnet;
+  const policy: payouts.PrivyTransferPolicy = {
+    usdcMint,
+    // Empty allowlist until the escrow wallet is configured → every transfer is
+    // denied permanently (gated). Cutover sets ESCROW_WALLET to open the path.
+    allowedDestinations: env.ESCROW_WALLET ? [env.ESCROW_WALLET] : [],
+    maxAmountUsdc: String(env.MAX_BET_USDC),
+  };
+  return new payouts.PrivySolanaTransferProvider({
+    signer: signer ?? GATED_PRIVY_SIGNER,
+    policy,
+    caip2,
+    feePayer: env.SOLANA_RELAYER_PUBKEY ?? SYSTEM_PROGRAM_ID,
+  });
+}
+
+/**
+ * Pure backend selection (exported for tests). Off-production always returns the
+ * deterministic mock — no real signer runs outside production, regardless of the
+ * flag. In production it branches on PAYMENT_BACKEND.
+ */
+export function selectProvider(
+  env: Env,
+  privySigner?: payouts.PrivySolanaSigner,
+): payouts.SolanaTransferProvider {
   if (env.NODE_ENV !== 'production') {
     return new payouts.MockSolanaTransferProvider();
   }
 
+  if (env.PAYMENT_BACKEND === 'privy') {
+    return buildPrivyTransferProvider(env, privySigner);
+  }
+
+  // ── raw-vault (default) — exact current behavior, unchanged. ──
   if (env.SOLANA_NETWORK === 'mainnet-beta') {
     // No signer plumbed for mainnet → any attempt fails permanently (not_configured).
     return new payouts.DevnetSolanaTransferProvider({ rpcUrl: '', usdcMint: '' });
   }
-
   return new payouts.DevnetSolanaTransferProvider({
     rpcUrl: env.SOLANA_RPC_URL ?? '',
     vaultSecretKeyBase58: env.SOLANA_VAULT_SECRET_KEY,
     usdcMint: env.SOLANA_USDC_MINT ?? USDC_MINT_ADDRESS,
     commitment: 'confirmed',
   });
+}
+
+/**
+ * Transparent observability decorator. Logs each transfer attempt + outcome
+ * (reference, idempotency key = reference, duration, provider) without altering
+ * behavior: same result, same errors, same `name`. Never logs secrets or amounts.
+ */
+class LoggingTransferProvider implements payouts.SolanaTransferProvider {
+  constructor(
+    private readonly inner: payouts.SolanaTransferProvider,
+    private readonly backend: string,
+  ) {}
+
+  get name(): string {
+    return this.inner.name;
+  }
+
+  async buildAndSubmitTransfer(
+    input: payouts.TransferInput,
+  ): Promise<payouts.TransferResult> {
+    const startedAt = Date.now();
+    const base = {
+      provider: this.inner.name,
+      backend: this.backend,
+      reference: input.reference,
+      idempotencyKey: input.reference,
+      betId: input.betId,
+    };
+    try {
+      const result = await this.inner.buildAndSubmitTransfer(input);
+      console.info(
+        JSON.stringify({ event: 'transfer_ok', ...base, durationMs: Date.now() - startedAt }),
+      );
+      return result;
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          event: 'transfer_failed',
+          ...base,
+          durationMs: Date.now() - startedAt,
+          error: err instanceof Error ? err.name : 'unknown',
+        }),
+      );
+      throw err;
+    }
+  }
+}
+
+/**
+ * Resolve the Solana transfer provider used by the withdrawal + payout runners.
+ * Selects the backend via PAYMENT_BACKEND (default raw-vault) and wraps it in a
+ * transparent logging decorator. `deps` is injectable for tests/cutover.
+ */
+export function buildTransferProvider(
+  deps: BuildTransferProviderDeps = {},
+): payouts.SolanaTransferProvider {
+  const env = deps.env ?? getEnv();
+  const provider = selectProvider(env, deps.privySigner);
+  console.info(
+    JSON.stringify({
+      event: 'transfer_provider_selected',
+      backend: env.PAYMENT_BACKEND,
+      provider: provider.name,
+    }),
+  );
+  return new LoggingTransferProvider(provider, env.PAYMENT_BACKEND);
 }

@@ -22,3 +22,18 @@ export {
   type ProcessPayoutQueueResult,
   type ProcessOnePayoutResult,
 } from './runner';
+// Privy delegated-signing provider surface (Phase 4 wiring). Re-exports the
+// already-built provider + the types `buildTransferProvider` needs to assemble
+// and inject it. No new logic — exposure only.
+export {
+  PrivySolanaTransferProvider,
+  type PrivyTransferProviderConfig,
+} from './privy-transfer';
+export {
+  SOLANA_CAIP2,
+  type SolanaCaip2,
+  type PrivySolanaSigner,
+  type PrivySignAndSendRequest,
+  type PrivySignAndSendResult,
+} from './privy-signer-port';
+export { type PrivyTransferPolicy } from './privy-policy';
