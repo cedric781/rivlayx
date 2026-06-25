@@ -4,6 +4,7 @@ export {
   type EscrowConfig,
   type EscrowConfigInput,
 } from './config';
+export { transferIdempotencyKey } from './idempotency';
 export {
   OnchainTransferError,
   createTransferRecord,

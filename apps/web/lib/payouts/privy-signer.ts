@@ -75,6 +75,52 @@ export class PrivyServerSolanaSigner {
   }
 }
 
+export interface PrivyServerSignerConfig {
+  appId: string;
+  appSecret: string;
+  /**
+   * Test seam: supply the wallet-api client directly, skipping the SDK import.
+   * Production omits it — the real `PrivyClient` is then loaded lazily.
+   */
+  buildClient?: () => PrivySolanaWalletApiLike | Promise<PrivySolanaWalletApiLike>;
+}
+
+/**
+ * Real delegated signer integration (Phase 6). Constructs the Privy server
+ * client LAZILY on first sign — the SDK is loaded via dynamic import, mirroring
+ * `createPrivyAuthProvider` — and caches it. This keeps `buildTransferProvider`
+ * synchronous (the async client build lives inside `signAndSend`, which is
+ * already async), so wiring the real signer never forces the sync provider
+ * factory or its callers to become async.
+ */
+export class LazyPrivyServerSolanaSigner {
+  private cached: Promise<PrivyServerSolanaSigner> | null = null;
+
+  constructor(private readonly config: PrivyServerSignerConfig) {}
+
+  private signer(): Promise<PrivyServerSolanaSigner> {
+    this.cached ??= (async () => {
+      const client = this.config.buildClient
+        ? await this.config.buildClient()
+        : await this.loadRealClient();
+      return new PrivyServerSolanaSigner(client);
+    })();
+    return this.cached;
+  }
+
+  private async loadRealClient(): Promise<PrivySolanaWalletApiLike> {
+    const mod = (await import('@privy-io/server-auth')) as unknown as {
+      PrivyClient: new (appId: string, appSecret: string) => PrivySolanaWalletApiLike;
+    };
+    return new mod.PrivyClient(this.config.appId, this.config.appSecret);
+  }
+
+  async signAndSend(req: PrivySignAndSendRequest): Promise<PrivySignAndSendResult> {
+    const signer = await this.signer();
+    return signer.signAndSend(req);
+  }
+}
+
 const PERMANENT_HINTS = [
   'policy',
   'denied',

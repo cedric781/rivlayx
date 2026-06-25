@@ -5,6 +5,7 @@ import type { TransferInput } from '../payouts/types';
 import { WITHDRAWAL_LIMITS } from '../withdrawals/cap';
 import { isValidSolanaAddress, type EscrowConfig } from './config';
 import { createTransferRecord } from './transfers';
+import { transferIdempotencyKey } from './idempotency';
 
 /**
  * Withdrawal payout foundation (Phase 3D). Prepares a user→external withdrawal:
@@ -98,7 +99,7 @@ export async function prepareWithdrawal(
   }
 
   // ── 4. Create the pending transfer record (idempotent on withdrawal:{requestId}) ──
-  const idempotencyKey = `withdrawal:${input.requestId}`;
+  const idempotencyKey = transferIdempotencyKey.withdrawal(input.requestId);
   const { transfer, created } = await createTransferRecord(db, {
     type: 'withdrawal',
     userId: input.userId,

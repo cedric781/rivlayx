@@ -37,3 +37,9 @@ export {
   type PrivySignAndSendResult,
 } from './privy-signer-port';
 export { type PrivyTransferPolicy } from './privy-policy';
+export {
+  resolveDelegatedEmbeddedWallet,
+  EmbeddedWalletError,
+  type EmbeddedWalletErrorCode,
+  type DelegatedEmbeddedWallet,
+} from './embedded-wallet';

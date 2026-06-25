@@ -23,3 +23,9 @@ export {
   type ProcessWithdrawalQueueResult,
   type ProcessOneWithdrawalResult,
 } from './runner';
+export {
+  executePrivyWithdrawal,
+  type ExecutePrivyWithdrawalInput,
+  type ExecutePrivyWithdrawalOptions,
+  type ExecutePrivyWithdrawalResult,
+} from './privy-flow';

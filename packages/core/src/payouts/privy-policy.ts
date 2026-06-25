@@ -1,24 +1,51 @@
 import Decimal from 'decimal.js';
+import { PublicKey } from '@solana/web3.js';
 
 /**
- * Delegated-signing policy (Phase 2). Two layers protect every transfer:
+ * Delegated-signing policy (Phase 2; Phase 6 adds dynamic destinations). Two
+ * layers protect every transfer:
  *   1. An on-wallet Privy policy (default-deny, applied at provisioning) — the
  *      authoritative guard enforced by Privy.
  *   2. This in-process `assertTransferAllowed` guard — defense-in-depth, run
  *      BEFORE the signer is ever called, so a disallowed transfer never reaches
  *      Privy. Same rules, two enforcement points.
  *
- * Allowed: an SPL **USDC** `transferChecked` from the user's own embedded wallet
- * to an allowlisted destination (escrow for stakes; validated external for
- * withdrawals), amount > 0 and ≤ cap. Everything else is denied.
+ * Two destination modes:
+ *   - **allowlist** (stakes → escrow): `allowedDestinations` is an exact set.
+ *   - **dynamic** (withdrawals → arbitrary external): `allowDynamicDestinations`
+ *     permits any VALID base58 wallet EXCEPT those in `deniedDestinations`
+ *     (e.g. the escrow wallet) and except a self-transfer. The withdrawal amount
+ *     cap and the USDC-mint restriction still apply in both modes.
  */
 export interface PrivyTransferPolicy {
   /** The only SPL mint that may be transferred. */
   usdcMint: string;
-  /** Allowlisted destination wallets (base58). e.g. `[escrowWallet]`. */
-  allowedDestinations: readonly string[];
+  /**
+   * Allowlisted destination wallets (base58) — allowlist mode, e.g. `[escrowWallet]`.
+   * Consulted only when `allowDynamicDestinations` is falsy.
+   */
+  allowedDestinations?: readonly string[];
+  /**
+   * Dynamic mode: allow any valid external destination. Used for withdrawals,
+   * whose destination is a per-request arbitrary wallet that cannot sit in a
+   * static allowlist. Still bounded by `deniedDestinations`, the self-transfer
+   * guard, the mint restriction and the amount cap.
+   */
+  allowDynamicDestinations?: boolean;
+  /** Never-allowed destinations, even in dynamic mode (e.g. `[escrowWallet]`). */
+  deniedDestinations?: readonly string[];
   /** Hard per-transfer cap (USDC decimal string). */
   maxAmountUsdc: string;
+}
+
+/** True when `address` is a valid 32-byte base58 Solana public key. */
+function isValidWalletAddress(address: string): boolean {
+  if (!address) return false;
+  try {
+    return new PublicKey(address).toBase58().length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export interface TransferIntent {
@@ -48,7 +75,15 @@ export function checkTransferAllowed(
   if (intent.fromWallet === intent.toWallet) {
     return { allowed: false, reason: 'source and destination wallet are identical' };
   }
-  if (!policy.allowedDestinations.includes(intent.toWallet)) {
+  // ── Destination: dynamic (withdrawals) or static allowlist (stakes) ──
+  if (policy.allowDynamicDestinations) {
+    if (!isValidWalletAddress(intent.toWallet)) {
+      return { allowed: false, reason: `destination ${intent.toWallet} is not a valid wallet address` };
+    }
+    if (policy.deniedDestinations?.includes(intent.toWallet)) {
+      return { allowed: false, reason: `destination ${intent.toWallet} is denied` };
+    }
+  } else if (!policy.allowedDestinations?.includes(intent.toWallet)) {
     return { allowed: false, reason: `destination ${intent.toWallet} is not allowlisted` };
   }
   const amt = new Decimal(intent.amountUsdc);
@@ -81,7 +116,10 @@ export function describeWalletPolicy(policy: PrivyTransferPolicy) {
         program: 'spl-token',
         instruction: 'transferChecked',
         mint: policy.usdcMint,
-        destinations: [...policy.allowedDestinations],
+        destinations: policy.allowDynamicDestinations
+          ? ('any' as const)
+          : [...(policy.allowedDestinations ?? [])],
+        deniedDestinations: [...(policy.deniedDestinations ?? [])],
         maxAmountUsdc: policy.maxAmountUsdc,
       },
     ],

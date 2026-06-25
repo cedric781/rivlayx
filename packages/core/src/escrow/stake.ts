@@ -9,6 +9,7 @@ import {
 } from '../payouts/privy-policy';
 import { isValidSolanaAddress, type EscrowConfig } from './config';
 import { createTransferRecord } from './transfers';
+import { transferIdempotencyKey } from './idempotency';
 
 /**
  * Stake foundation (Phase 3C). Prepares a user→escrow stake: validates the
@@ -99,7 +100,7 @@ export async function prepareStake(
   }
 
   // ── 4. Create the pending transfer record (idempotent) ──
-  const idempotencyKey = `stake:${input.betId}:${input.userId}`;
+  const idempotencyKey = transferIdempotencyKey.stake(input.betId, input.userId);
   const { transfer, created } = await createTransferRecord(db, {
     type: 'stake',
     userId: input.userId,

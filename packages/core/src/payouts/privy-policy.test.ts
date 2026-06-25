@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Keypair } from '@solana/web3.js';
 import { USDC_MINT_ADDRESS } from '@rivlayx/shared';
 import {
   PolicyViolationError,
@@ -8,6 +9,7 @@ import {
   type PrivyTransferPolicy,
 } from './privy-policy';
 
+const addr = () => Keypair.generate().publicKey.toBase58();
 const ESCROW = 'Escrow1111111111111111111111111111111111111';
 const USER = 'User1111111111111111111111111111111111111111';
 const POLICY: PrivyTransferPolicy = {
@@ -50,6 +52,58 @@ describe('checkTransferAllowed', () => {
   });
 });
 
+describe('checkTransferAllowed — dynamic destinations (withdrawals)', () => {
+  const mint = USDC_MINT_ADDRESS;
+  const escrow = addr();
+  const user = addr();
+  const external = addr();
+  const dyn: PrivyTransferPolicy = {
+    usdcMint: mint,
+    allowDynamicDestinations: true,
+    deniedDestinations: [escrow],
+    maxAmountUsdc: '25',
+  };
+
+  it('allows any valid external destination within cap', () => {
+    expect(
+      checkTransferAllowed({ fromWallet: user, toWallet: external, amountUsdc: '10', mint }, dyn),
+    ).toEqual({ allowed: true });
+  });
+
+  it('denies a denied destination (the escrow wallet)', () => {
+    const d = checkTransferAllowed({ fromWallet: user, toWallet: escrow, amountUsdc: '10', mint }, dyn);
+    expect(d.allowed).toBe(false);
+  });
+
+  it('denies an invalid (non-base58) destination', () => {
+    const d = checkTransferAllowed(
+      { fromWallet: user, toWallet: 'not-a-valid-wallet!!!', amountUsdc: '10', mint },
+      dyn,
+    );
+    expect(d.allowed).toBe(false);
+  });
+
+  it('denies a self-transfer even in dynamic mode', () => {
+    expect(
+      checkTransferAllowed({ fromWallet: user, toWallet: user, amountUsdc: '10', mint }, dyn).allowed,
+    ).toBe(false);
+  });
+
+  it('still enforces the mint restriction and the amount cap', () => {
+    expect(
+      checkTransferAllowed({ fromWallet: user, toWallet: external, amountUsdc: '10', mint: addr() }, dyn)
+        .allowed,
+    ).toBe(false);
+    expect(
+      checkTransferAllowed({ fromWallet: user, toWallet: external, amountUsdc: '25.000001', mint }, dyn)
+        .allowed,
+    ).toBe(false);
+    expect(
+      checkTransferAllowed({ fromWallet: user, toWallet: external, amountUsdc: '25', mint }, dyn).allowed,
+    ).toBe(true);
+  });
+});
+
 describe('assertTransferAllowed', () => {
   it('throws PolicyViolationError on a denied transfer', () => {
     expect(() => assertTransferAllowed({ ...base, mint: 'X' }, POLICY)).toThrow(PolicyViolationError);
@@ -67,5 +121,16 @@ describe('describeWalletPolicy', () => {
     expect(spec.allow[0]?.mint).toBe(USDC_MINT_ADDRESS);
     expect(spec.allow[0]?.destinations).toEqual([ESCROW]);
     expect(spec.deny).toContain('system:transfer');
+  });
+
+  it('describes dynamic mode as any destination with a denied set', () => {
+    const spec = describeWalletPolicy({
+      usdcMint: USDC_MINT_ADDRESS,
+      allowDynamicDestinations: true,
+      deniedDestinations: [ESCROW],
+      maxAmountUsdc: '25',
+    });
+    expect(spec.allow[0]?.destinations).toBe('any');
+    expect(spec.allow[0]?.deniedDestinations).toEqual([ESCROW]);
   });
 });

@@ -4,6 +4,7 @@ import type { LedgerDb } from '../ledger/types';
 import type { TransferInput } from '../payouts/types';
 import { isValidSolanaAddress, type EscrowConfig } from './config';
 import { createTransferRecord } from './transfers';
+import { transferIdempotencyKey } from './idempotency';
 
 /**
  * Settlement payout foundation (Phase 3D). Prepares an escrow→winner payout:
@@ -80,7 +81,7 @@ export async function preparePayout(
   }
 
   // ── 3. Create the pending transfer record (idempotent on payout:{betId}) ──
-  const idempotencyKey = `payout:${input.betId}`;
+  const idempotencyKey = transferIdempotencyKey.payout(input.betId);
   const { transfer, created } = await createTransferRecord(db, {
     type: 'settlement_payout',
     userId: input.winnerUserId,

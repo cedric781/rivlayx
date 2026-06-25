@@ -9,6 +9,7 @@ import { payouts } from '@rivlayx/core';
 import { USDC_MINT_ADDRESS } from '@rivlayx/shared';
 import { getEnv, type Env } from '../env';
 import { runShadow } from './shadow';
+import { LazyPrivyServerSolanaSigner } from './privy-signer';
 
 /** Solana system-program id — placeholder fee payer for the gated privy path. */
 const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
@@ -37,7 +38,27 @@ const GATED_PRIVY_SIGNER: payouts.PrivySolanaSigner = {
   },
 };
 
-/** Assemble the already-built Privy provider from env + an (optional) signer. */
+/**
+ * Resolve the delegated signer for the privy backend. Injected signer wins
+ * (tests/cutover). Otherwise the real lazy Privy signer when app credentials are
+ * present; failing that, the gated signer (rejects permanently). Selecting privy
+ * is still an explicit opt-in — the default backend stays raw-vault.
+ */
+function resolvePrivySigner(
+  env: Env,
+  injected?: payouts.PrivySolanaSigner,
+): payouts.PrivySolanaSigner {
+  if (injected) return injected;
+  if (env.PRIVY_APP_ID && env.PRIVY_APP_SECRET) {
+    return new LazyPrivyServerSolanaSigner({
+      appId: env.PRIVY_APP_ID,
+      appSecret: env.PRIVY_APP_SECRET,
+    });
+  }
+  return GATED_PRIVY_SIGNER;
+}
+
+/** Assemble the Privy provider (delegated signing) from env + an (optional) signer. */
 function buildPrivyTransferProvider(
   env: Env,
   signer?: payouts.PrivySolanaSigner,
@@ -47,15 +68,18 @@ function buildPrivyTransferProvider(
     env.SOLANA_NETWORK === 'mainnet-beta'
       ? payouts.SOLANA_CAIP2.mainnet
       : payouts.SOLANA_CAIP2.devnet;
+  // Withdrawals (the live provider-backed flow) target an arbitrary external
+  // destination validated per-request → dynamic mode, with the escrow wallet
+  // denied (a withdrawal is never an internal move) and bounded by the
+  // withdrawal cap. The Privy on-wallet policy enforces the same rules.
   const policy: payouts.PrivyTransferPolicy = {
     usdcMint,
-    // Empty allowlist until the escrow wallet is configured → every transfer is
-    // denied permanently (gated). Cutover sets ESCROW_WALLET to open the path.
-    allowedDestinations: env.ESCROW_WALLET ? [env.ESCROW_WALLET] : [],
-    maxAmountUsdc: String(env.MAX_BET_USDC),
+    allowDynamicDestinations: true,
+    deniedDestinations: env.ESCROW_WALLET ? [env.ESCROW_WALLET] : [],
+    maxAmountUsdc: String(env.MAX_WITHDRAW_USDC),
   };
   return new payouts.PrivySolanaTransferProvider({
-    signer: signer ?? GATED_PRIVY_SIGNER,
+    signer: resolvePrivySigner(env, signer),
     policy,
     caip2,
     feePayer: env.SOLANA_RELAYER_PUBKEY ?? SYSTEM_PROGRAM_ID,
