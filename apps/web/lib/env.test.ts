@@ -97,6 +97,22 @@ describe('apps/web env validation', () => {
     expect(() => loadEnv({ ...valid, PAYMENT_BACKEND: 'stripe' })).toThrow(/PAYMENT_BACKEND/);
   });
 
+  it('defaults PAYMENT_SHADOW_MODE to false', () => {
+    expect(loadEnv(valid).PAYMENT_SHADOW_MODE).toBe(false);
+  });
+
+  it('parses PAYMENT_SHADOW_MODE=true to boolean true', () => {
+    expect(loadEnv({ ...valid, PAYMENT_SHADOW_MODE: 'true' }).PAYMENT_SHADOW_MODE).toBe(true);
+  });
+
+  it('parses PAYMENT_SHADOW_MODE=false to boolean false (no truthy-string coercion)', () => {
+    expect(loadEnv({ ...valid, PAYMENT_SHADOW_MODE: 'false' }).PAYMENT_SHADOW_MODE).toBe(false);
+  });
+
+  it('rejects a non-boolean PAYMENT_SHADOW_MODE', () => {
+    expect(() => loadEnv({ ...valid, PAYMENT_SHADOW_MODE: 'yes' })).toThrow(/PAYMENT_SHADOW_MODE/);
+  });
+
   it('allows missing Privy keys outside production', () => {
     expect(() => loadEnv({ ...valid })).not.toThrow();
   });

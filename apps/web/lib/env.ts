@@ -21,6 +21,18 @@ const BaseSchema = z.object({
    */
   PAYMENT_BACKEND: z.enum(['raw-vault', 'privy']).default('raw-vault'),
   /**
+   * Privy payment migration (Phase 5) — shadow mode. When `true` AND
+   * PAYMENT_BACKEND=raw-vault, the Privy transfer intent is computed as a DRY-RUN
+   * alongside each live raw-vault transfer and compared (no signer, no RPC, no
+   * submit, no writes). Pure observability. Default `false`. Parsed from the
+   * literal strings `'true'`/`'false'` (an unknown value is rejected at boot) so
+   * `'false'` can never coerce to truthy.
+   */
+  PAYMENT_SHADOW_MODE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /**
    * Central escrow wallet owner address (base58). Allowlisted stake destination
    * for the Privy provider's transfer policy. Optional: only consumed when
    * PAYMENT_BACKEND=privy; absent → the privy provider stays gated.

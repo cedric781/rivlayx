@@ -8,6 +8,7 @@
 import { payouts } from '@rivlayx/core';
 import { USDC_MINT_ADDRESS } from '@rivlayx/shared';
 import { getEnv, type Env } from '../env';
+import { runShadow } from './shadow';
 
 /** Solana system-program id — placeholder fee payer for the gated privy path. */
 const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
@@ -138,9 +139,59 @@ class LoggingTransferProvider implements payouts.SolanaTransferProvider {
 }
 
 /**
+ * Shadow decorator (Phase 5). Runs the live (raw-vault) transfer UNCHANGED, then
+ * computes + compares the Privy dry-run intent for observability. The shadow pass
+ * runs in `finally` and can never alter the live result or error: it returns the
+ * inner result verbatim and re-throws the inner error untouched. It performs no
+ * signing, no RPC, no writes (see `runShadow`).
+ */
+class ShadowTransferProvider implements payouts.SolanaTransferProvider {
+  constructor(
+    private readonly inner: payouts.SolanaTransferProvider,
+    private readonly env: Env,
+  ) {}
+
+  get name(): string {
+    return this.inner.name;
+  }
+
+  async buildAndSubmitTransfer(
+    input: payouts.TransferInput,
+  ): Promise<payouts.TransferResult> {
+    try {
+      return await this.inner.buildAndSubmitTransfer(input);
+    } finally {
+      try {
+        runShadow(input, { env: this.env, providerName: this.inner.name });
+      } catch {
+        // Shadow is observability-only — never let it affect the live path.
+      }
+    }
+  }
+}
+
+/**
+ * Wrap `inner` in the shadow decorator when shadow mode is on against the live
+ * raw-vault backend; otherwise return `inner` unchanged. Shadowing the privy
+ * backend (when it is itself live) would compare it to itself — skipped.
+ * Exported so the transparency property is directly testable.
+ */
+export function maybeWrapShadow(
+  inner: payouts.SolanaTransferProvider,
+  env: Env,
+): payouts.SolanaTransferProvider {
+  if (env.PAYMENT_SHADOW_MODE && env.PAYMENT_BACKEND === 'raw-vault') {
+    return new ShadowTransferProvider(inner, env);
+  }
+  return inner;
+}
+
+/**
  * Resolve the Solana transfer provider used by the withdrawal + payout runners.
  * Selects the backend via PAYMENT_BACKEND (default raw-vault) and wraps it in a
- * transparent logging decorator. `deps` is injectable for tests/cutover.
+ * transparent logging decorator. When PAYMENT_SHADOW_MODE=true with the raw-vault
+ * backend, also wraps it in the shadow decorator (dry-run Privy comparison).
+ * `deps` is injectable for tests/cutover.
  */
 export function buildTransferProvider(
   deps: BuildTransferProviderDeps = {},
@@ -152,7 +203,13 @@ export function buildTransferProvider(
       event: 'transfer_provider_selected',
       backend: env.PAYMENT_BACKEND,
       provider: provider.name,
+      shadow: env.PAYMENT_SHADOW_MODE,
     }),
   );
-  return new LoggingTransferProvider(provider, env.PAYMENT_BACKEND);
+
+  const logged: payouts.SolanaTransferProvider = new LoggingTransferProvider(
+    provider,
+    env.PAYMENT_BACKEND,
+  );
+  return maybeWrapShadow(logged, env);
 }
