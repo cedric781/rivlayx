@@ -9,80 +9,41 @@ import { payouts } from '@rivlayx/core';
 import { USDC_MINT_ADDRESS } from '@rivlayx/shared';
 import { getEnv, type Env } from '../env';
 import { runShadow } from './shadow';
-import { LazyPrivyServerSolanaSigner } from './privy-signer';
-
-/** Solana system-program id — placeholder fee payer for the gated privy path. */
-const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111';
+import { resolveHardenedPrivyConfig, resolveHardenedPrivySigner } from './privy-config';
 
 export interface BuildTransferProviderDeps {
   /** Override the resolved env (tests). */
   env?: Env;
   /**
-   * Delegated Privy signer. Injected by tests and (later) at cutover. Omitted
-   * pre-cutover → the privy provider is assembled GATED and signs nothing.
+   * Delegated Privy signer. Injected by tests and (later) at cutover. Omitted →
+   * the signer is resolved fail-closed from credentials (see `privy-config`).
    */
   privySigner?: payouts.PrivySolanaSigner;
 }
 
 /**
- * Gated delegated signer: rejects every signing attempt permanently. Used when
- * PAYMENT_BACKEND=privy is selected before a real signer is wired — it mirrors
- * the mainnet-beta raw-vault gate (returned provider fails permanently). In
- * practice the empty-allowlist policy denies first, so this is a second guard.
+ * Assemble the Privy provider (delegated signing) from the FAIL-CLOSED hardened
+ * config: signer, fee payer, mint, chain (CAIP-2) and the denied escrow wallet
+ * are all explicitly required + validated in `privy-config` — a misconfiguration
+ * throws before any provider is built. Withdrawals target a per-request external
+ * destination (dynamic policy) with the escrow wallet always denied.
  */
-const GATED_PRIVY_SIGNER: payouts.PrivySolanaSigner = {
-  signAndSend() {
-    return Promise.reject(
-      new payouts.TransferPermanentError('privy delegated signer not wired (cutover step)'),
-    );
-  },
-};
-
-/**
- * Resolve the delegated signer for the privy backend. Injected signer wins
- * (tests/cutover). Otherwise the real lazy Privy signer when app credentials are
- * present; failing that, the gated signer (rejects permanently). Selecting privy
- * is still an explicit opt-in — the default backend stays raw-vault.
- */
-function resolvePrivySigner(
-  env: Env,
-  injected?: payouts.PrivySolanaSigner,
-): payouts.PrivySolanaSigner {
-  if (injected) return injected;
-  if (env.PRIVY_APP_ID && env.PRIVY_APP_SECRET) {
-    return new LazyPrivyServerSolanaSigner({
-      appId: env.PRIVY_APP_ID,
-      appSecret: env.PRIVY_APP_SECRET,
-    });
-  }
-  return GATED_PRIVY_SIGNER;
-}
-
-/** Assemble the Privy provider (delegated signing) from env + an (optional) signer. */
 function buildPrivyTransferProvider(
   env: Env,
   signer?: payouts.PrivySolanaSigner,
 ): payouts.SolanaTransferProvider {
-  const usdcMint = env.SOLANA_USDC_MINT ?? USDC_MINT_ADDRESS;
-  const caip2 =
-    env.SOLANA_NETWORK === 'mainnet-beta'
-      ? payouts.SOLANA_CAIP2.mainnet
-      : payouts.SOLANA_CAIP2.devnet;
-  // Withdrawals (the live provider-backed flow) target an arbitrary external
-  // destination validated per-request → dynamic mode, with the escrow wallet
-  // denied (a withdrawal is never an internal move) and bounded by the
-  // withdrawal cap. The Privy on-wallet policy enforces the same rules.
+  const cfg = resolveHardenedPrivyConfig(env);
   const policy: payouts.PrivyTransferPolicy = {
-    usdcMint,
+    usdcMint: cfg.usdcMint,
     allowDynamicDestinations: true,
-    deniedDestinations: env.ESCROW_WALLET ? [env.ESCROW_WALLET] : [],
-    maxAmountUsdc: String(env.MAX_WITHDRAW_USDC),
+    deniedDestinations: [cfg.escrowWallet],
+    maxAmountUsdc: cfg.maxAmountUsdc,
   };
   return new payouts.PrivySolanaTransferProvider({
-    signer: resolvePrivySigner(env, signer),
+    signer: resolveHardenedPrivySigner(env, signer),
     policy,
-    caip2,
-    feePayer: env.SOLANA_RELAYER_PUBKEY ?? SYSTEM_PROGRAM_ID,
+    caip2: cfg.caip2,
+    feePayer: cfg.feePayer,
   });
 }
 

@@ -3,7 +3,12 @@ import type { payouts } from '@rivlayx/core';
 import { loadEnv } from '../env';
 import { buildTransferProvider, selectProvider } from './provider';
 
-/** Minimal production env (mirrors env.test's prodBase) with an overridable backend. */
+// Real, valid 32-byte base58 addresses — the hardened privy config validates these.
+const MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const RELAYER = 'So11111111111111111111111111111111111111112';
+const ESCROW = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
+
+/** Minimal production env with a fully valid (fail-closed-passing) privy config. */
 const prodEnv = (over: Record<string, string> = {}) =>
   loadEnv({
     NODE_ENV: 'production',
@@ -13,7 +18,9 @@ const prodEnv = (over: Record<string, string> = {}) =>
     PRIVY_APP_SECRET: 'prod-app-secret',
     PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
     CRON_SECRET: 'prod-cron-secret-0123456789',
-    SOLANA_USDC_MINT: 'DevnetUsdcMintForProd11111111111111111111',
+    SOLANA_USDC_MINT: MINT,
+    SOLANA_RELAYER_PUBKEY: RELAYER,
+    ESCROW_WALLET: ESCROW,
     ...over,
   });
 
@@ -54,6 +61,39 @@ describe('buildTransferProvider — backend selection', () => {
     vi.spyOn(console, 'info').mockImplementation(() => {});
     const provider = buildTransferProvider({ env: prodEnv({ PAYMENT_BACKEND: 'privy' }), privySigner: stubSigner });
     expect(provider.name).toBe('privy');
+  });
+
+  it('fails closed: privy selection throws when the relayer fee payer is missing', () => {
+    const { SOLANA_RELAYER_PUBKEY: _omit, ...src } = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://u:p@host:5432/db',
+      PRIVY_APP_ID: 'x',
+      NEXT_PUBLIC_PRIVY_APP_ID: 'x',
+      PRIVY_APP_SECRET: 'x',
+      PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
+      CRON_SECRET: 'prod-cron-secret-0123456789',
+      SOLANA_USDC_MINT: MINT,
+      ESCROW_WALLET: ESCROW,
+      SOLANA_RELAYER_PUBKEY: RELAYER,
+      PAYMENT_BACKEND: 'privy',
+    };
+    expect(() => selectProvider(loadEnv(src), stubSigner)).toThrow(/SOLANA_RELAYER_PUBKEY/);
+  });
+
+  it('policy bypass impossible: a withdrawal to the escrow wallet is rejected', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const provider = buildTransferProvider({ env: prodEnv({ PAYMENT_BACKEND: 'privy' }), privySigner: stubSigner });
+
+    await expect(
+      provider.buildAndSubmitTransfer({
+        reference: 'withdrawal:r1',
+        toWallet: ESCROW, // the denied escrow wallet
+        amountUsdc: '10',
+        betId: 'r1',
+        fromWallet: '11111111111111111111111111111111',
+      }),
+    ).rejects.toThrow(/denied/);
   });
 
   it('the logging decorator is transparent: same result, logs the reference', async () => {
