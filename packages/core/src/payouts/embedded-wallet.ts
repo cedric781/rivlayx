@@ -1,19 +1,29 @@
 import { and, eq } from 'drizzle-orm';
-import { wallets } from '@rivlayx/db';
+import { users, wallets } from '@rivlayx/db';
 import type { LedgerDb } from '../ledger/types';
 
 /**
- * Embedded-wallet verification (Phase 6). Resolves the Privy embedded wallet a
- * user signs from for delegated transfers (stakes, withdrawals) and verifies it
- * is signing-ready. The `delegated` flag is mirrored into `auth.wallets` at
- * provisioning/verify time, so this is a pure READ — no Privy SDK call, no write.
+ * Embedded-wallet verification + revocation guard (Phase 6). Resolves the Privy
+ * embedded wallet a user signs from for delegated transfers and verifies, on
+ * EVERY call (no cache → never stale), that it is still signing-ready. The
+ * `delegated` flag is mirrored into `auth.wallets` at provisioning/verify time;
+ * a revocation flips it to `false` and is caught here. Pure READ — no Privy SDK
+ * call, no write.
  *
- * It is the source of `fromWallet` for a Privy withdrawal: refusing here (typed
- * error) keeps an un-delegated or non-embedded wallet from ever reaching the
- * signer.
+ * It is the single source of `fromWallet` for a delegated transfer and is
+ * FAIL-CLOSED: an inactive/deleted user, a missing/non-embedded/un-delegated
+ * wallet, or an ambiguous set of delegated wallets (e.g. a replacement that did
+ * not revoke the old one) all throw a typed `EmbeddedWalletError` instead of
+ * letting a stale or wrong wallet reach the signer.
  */
 
-export type EmbeddedWalletErrorCode = 'NOT_FOUND' | 'NOT_EMBEDDED' | 'NOT_DELEGATED';
+export type EmbeddedWalletErrorCode =
+  | 'USER_NOT_FOUND'
+  | 'USER_INACTIVE'
+  | 'NOT_FOUND'
+  | 'NOT_EMBEDDED'
+  | 'NOT_DELEGATED'
+  | 'AMBIGUOUS_WALLET';
 
 export class EmbeddedWalletError extends Error {
   readonly code: EmbeddedWalletErrorCode;
@@ -32,11 +42,14 @@ export interface DelegatedEmbeddedWallet {
 }
 
 /**
- * Resolve + verify the user's delegated Solana embedded wallet. Prefers the
- * primary wallet, falls back to the first embedded one. Throws a typed
- * `EmbeddedWalletError` when there is no wallet (`NOT_FOUND`), none is a Privy
- * embedded wallet (`NOT_EMBEDDED`), or the embedded wallet has not granted
- * delegated signing (`NOT_DELEGATED`).
+ * Resolve + verify the user's delegated Solana embedded wallet, fail-closed.
+ * Throws a typed `EmbeddedWalletError`: the user is missing (`USER_NOT_FOUND`)
+ * or not active (`USER_INACTIVE`); the user has no wallet (`NOT_FOUND`) or no
+ * Privy embedded wallet (`NOT_EMBEDDED`); no embedded wallet is currently
+ * delegated (`NOT_DELEGATED`, i.e. never granted or revoked); or several
+ * delegated wallets cannot be disambiguated to a single signer
+ * (`AMBIGUOUS_WALLET`). Re-evaluated on every call, so a revocation takes effect
+ * immediately and a stale wallet is never reused.
  */
 interface WalletRow {
   address: string;
@@ -49,6 +62,21 @@ export async function resolveDelegatedEmbeddedWallet(
   db: LedgerDb,
   userId: string,
 ): Promise<DelegatedEmbeddedWallet> {
+  // ── 1. The user must exist and be active (deleted/suspended/banned cannot
+  // sign). A deleted user cascades its wallets, so this also catches that. ──
+  const [user] = (await db
+    .select({ status: users.status })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)) as { status: string }[];
+  if (!user) {
+    throw new EmbeddedWalletError('USER_NOT_FOUND', `user ${userId} not found`);
+  }
+  if (user.status !== 'active') {
+    throw new EmbeddedWalletError('USER_INACTIVE', `user ${userId} is '${user.status}', not active`);
+  }
+
+  // ── 2. Ownership: only THIS user's solana wallets are ever considered. ──
   const rows = (await db
     .select({
       address: wallets.address,
@@ -68,12 +96,32 @@ export async function resolveDelegatedEmbeddedWallet(
     throw new EmbeddedWalletError('NOT_EMBEDDED', `user ${userId} has no privy embedded wallet`);
   }
 
-  const chosen = embedded.find((w) => w.isPrimary) ?? embedded[0]!;
-  if (!chosen.delegated) {
+  // ── 3. Only CURRENTLY-delegated wallets may sign. A revoked wallet has
+  // `delegated = false` and is excluded here. ──
+  const delegated = embedded.filter((w) => w.delegated);
+  if (delegated.length === 0) {
     throw new EmbeddedWalletError(
       'NOT_DELEGATED',
-      `embedded wallet for user ${userId} has not granted delegated signing`,
+      `embedded wallet for user ${userId} has not granted (or has revoked) delegated signing`,
     );
+  }
+
+  // ── 4. Deterministic, unambiguous choice. With one delegated wallet, use it.
+  // With several (e.g. a replacement that did not revoke the old wallet) require
+  // exactly one primary — otherwise fail closed so an old wallet can never be
+  // picked by undefined row ordering. ──
+  let chosen: WalletRow;
+  if (delegated.length === 1) {
+    chosen = delegated[0]!;
+  } else {
+    const primaries = delegated.filter((w) => w.isPrimary);
+    if (primaries.length !== 1) {
+      throw new EmbeddedWalletError(
+        'AMBIGUOUS_WALLET',
+        `user ${userId} has ${delegated.length} delegated embedded wallets and ${primaries.length} primary — cannot resolve a single signer`,
+      );
+    }
+    chosen = primaries[0]!;
   }
 
   return { address: chosen.address, delegated: true };
