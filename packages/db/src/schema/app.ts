@@ -781,6 +781,8 @@ export const opsAlertTypeValues = [
   'tvl_near_cap',
   'freeze_active',
   'health_degraded',
+  'transfer_failed',
+  'transfer_stuck',
 ] as const;
 export type OpsAlertType = (typeof opsAlertTypeValues)[number];
 

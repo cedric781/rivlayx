@@ -1,11 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ne, sql } from 'drizzle-orm';
-import { cronRuns, opsAlerts, reconciliationRuns } from '@rivlayx/db';
-import { createTestDb, type TestDb } from '@rivlayx/test-utils';
+import { eq, ne, sql } from 'drizzle-orm';
+import {
+  cronRuns,
+  onchainTransfers,
+  opsAlerts,
+  reconciliationRuns,
+  withdrawalRequests,
+} from '@rivlayx/db';
+import { createTestDb, createTestUser, type TestDb } from '@rivlayx/test-utils';
 import { OPS_DEFAULTS } from './config';
 import { recordCronRun, getCronHealth, pruneCronRuns } from './cron-runs';
 import { runOpsCycle } from './cycle';
 import { getHealthSnapshot } from './health';
+
+const DEST = 'So11111111111111111111111111111111111111112';
 
 let harness: TestDb;
 
@@ -17,7 +25,9 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await harness.pg.exec(
-    'TRUNCATE financial.ledger_entries; TRUNCATE financial.balances; ' +
+    'TRUNCATE auth.users CASCADE; ' +
+      'TRUNCATE financial.withdrawal_requests CASCADE; TRUNCATE financial.onchain_transfers CASCADE; ' +
+      'TRUNCATE financial.ledger_entries; TRUNCATE financial.balances; ' +
       'TRUNCATE financial.freeze_state CASCADE; ' +
       "INSERT INTO financial.freeze_state (component) VALUES ('new_bets'), ('settlements'), ('withdrawals'), ('all'); " +
       'TRUNCATE app.cron_runs; TRUNCATE app.ops_alerts; TRUNCATE financial.reconciliation_runs;',
@@ -33,6 +43,15 @@ async function countOpen(): Promise<number> {
     .from(opsAlerts)
     .where(ne(opsAlerts.status, 'resolved'));
   return Number(r!.n);
+}
+
+/** Types of all non-resolved alerts (for asserting which conditions paged). */
+async function openTypes(): Promise<string[]> {
+  const rows = await harness.db
+    .select({ type: opsAlerts.type })
+    .from(opsAlerts)
+    .where(ne(opsAlerts.status, 'resolved'));
+  return rows.map((r: { type: string }) => r.type);
 }
 
 describe('recordCronRun', () => {
@@ -184,6 +203,131 @@ describe('runOpsCycle', () => {
     });
     expect(typeof cronStale['id']).toBe('string'); // persisted uuid handle
     expect(typeof cronStale['timestamp']).toBe('string'); // ISO created_at
+  });
+});
+
+describe('runOpsCycle — money-transfer alerting (C2)', () => {
+  // Seed a fresh settle run + ok recon so cron/recon alerts stay quiet — leaving
+  // ONLY the transfer conditions under test to page.
+  async function quietBaseline() {
+    const now = new Date();
+    await harness.db
+      .insert(cronRuns)
+      .values({ job: 'settle', status: 'ok', startedAt: now, finishedAt: now, durationMs: 1 });
+    await harness.db.insert(reconciliationRuns).values({
+      status: 'ok',
+      ledgerTotalUsdc: '0',
+      onChainTotalUsdc: '0',
+      driftUsdc: '0',
+    });
+  }
+
+  it('pages a failed withdrawal + a stuck on-chain transfer, dedups on re-run, then auto-resolves', async () => {
+    await quietBaseline();
+    const user = await createTestUser(harness.db);
+    const longAgo = new Date(Date.now() - 60 * 60_000); // 60m — well past the 30m threshold
+
+    // A withdrawal that landed in terminal `failed` just now.
+    await harness.db.insert(withdrawalRequests).values({
+      userId: user.id,
+      amountUsdc: '5',
+      destinationWallet: DEST,
+      status: 'failed',
+      availableAtRequestUsdc: '5',
+      failedAt: new Date(),
+      lastError: 'permanent: policy denied',
+    });
+    // An on-chain transfer wedged in `submitted` an hour ago (never finalized).
+    await harness.db.insert(onchainTransfers).values({
+      type: 'withdrawal',
+      userId: user.id,
+      sourceWallet: DEST,
+      destinationWallet: DEST,
+      amountUsdc: '10',
+      mint: DEST,
+      idempotencyKey: 'withdrawal:stuck-1',
+      status: 'submitted',
+      submittedAt: longAgo,
+    });
+
+    const first = await runOpsCycle(harness.db, { config: CFG });
+    const types = await openTypes();
+    expect(types).toContain('transfer_failed'); // failed withdrawal paged (critical)
+    expect(types).toContain('transfer_stuck'); // stuck transfer paged (warning)
+    expect(first.created).toBeGreaterThanOrEqual(2);
+
+    // Re-run with the SAME unhealthy state → dedup, no new pages (no spam).
+    const openBefore = await countOpen();
+    const second = await runOpsCycle(harness.db, { config: CFG });
+    expect(second.created).toBe(0);
+    expect(await countOpen()).toBe(openBefore);
+
+    // Clear both conditions → both alerts auto-resolve.
+    await harness.db
+      .update(withdrawalRequests)
+      .set({ status: 'paid', paidAt: new Date() })
+      .where(eq(withdrawalRequests.status, 'failed'));
+    await harness.db
+      .update(onchainTransfers)
+      .set({ status: 'finalized', finalizedAt: new Date() })
+      .where(eq(onchainTransfers.status, 'submitted'));
+
+    const third = await runOpsCycle(harness.db, { config: CFG });
+    expect(third.resolved).toBeGreaterThanOrEqual(2);
+    expect(await openTypes()).not.toContain('transfer_failed');
+    expect(await openTypes()).not.toContain('transfer_stuck');
+  });
+
+  it('pages transfer_stuck for a withdrawal wedged in processing', async () => {
+    await quietBaseline();
+    const user = await createTestUser(harness.db);
+    await harness.db.insert(withdrawalRequests).values({
+      userId: user.id,
+      amountUsdc: '7',
+      destinationWallet: DEST,
+      status: 'processing',
+      availableAtRequestUsdc: '7',
+      processingAt: new Date(Date.now() - 90 * 60_000), // 90m stuck
+    });
+
+    await runOpsCycle(harness.db, { config: CFG });
+    expect(await openTypes()).toContain('transfer_stuck');
+  });
+
+  it('a fresh failure inside the lookback window pages; nothing pages when clean', async () => {
+    await quietBaseline();
+    // No transfers at all → no transfer alerts.
+    await runOpsCycle(harness.db, { config: CFG });
+    expect(await openTypes()).not.toContain('transfer_failed');
+    expect(await openTypes()).not.toContain('transfer_stuck');
+  });
+});
+
+describe('runOpsCycle — deposit/withdrawal cron failures are now monitored (C2)', () => {
+  it('includes deposits + withdrawals in the default expected-cron set', () => {
+    expect(OPS_DEFAULTS.crons).toHaveProperty('deposits');
+    expect(OPS_DEFAULTS.crons).toHaveProperty('withdrawals');
+  });
+
+  it('a failed withdrawals cron run pages cron_failed (critical)', async () => {
+    await harness.db.insert(reconciliationRuns).values({
+      status: 'ok',
+      ledgerTotalUsdc: '0',
+      onChainTotalUsdc: '0',
+      driftUsdc: '0',
+    });
+    await expect(
+      recordCronRun(harness.db, 'withdrawals', async () => {
+        throw new Error('boom');
+      }),
+    ).rejects.toThrow('boom');
+
+    const cfg = {
+      ...OPS_DEFAULTS,
+      crons: { withdrawals: { intervalMinutes: 5, graceMultiplier: 3 } },
+    };
+    await runOpsCycle(harness.db, { config: cfg });
+    expect(await openTypes()).toContain('cron_failed');
   });
 });
 

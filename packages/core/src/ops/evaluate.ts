@@ -1,9 +1,15 @@
-import { desc, sql } from 'drizzle-orm';
-import { reconciliationRuns } from '@rivlayx/db';
+import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { onchainTransfers, reconciliationRuns, withdrawalRequests } from '@rivlayx/db';
 import { OPS_DEFAULTS, type OpsConfig } from './config';
 import { computeCurrentTvl } from '../deposits/tvl';
 import { getCronHealth } from './cron-runs';
-import type { HealthStatus, OpsAlertSpec, OpsSnapshot } from './types';
+import type {
+  HealthStatus,
+  OpsAlertSpec,
+  OpsSnapshot,
+  TransferConditionHealth,
+  TransferHealth,
+} from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OpsDb = any;
@@ -86,6 +92,55 @@ export function evaluateOps(
     });
   }
 
+  // ── C2: money-transfer alerting. A failed transfer (money did not move) pages
+  // critical; a stuck transfer (submitted/processing too long) pages warning.
+  // Each condition collapses to ONE alert via a stable dedupKey, so N failures
+  // never spam — the count rides in the evidence, and it auto-resolves when the
+  // condition clears. (type, dedupKey) is the dedup identity, so transfer_failed
+  // and transfer_stuck can share the 'withdrawals' key without colliding. ──
+  const t = snapshot.transfers;
+  if (t.failedWithdrawals.count > 0) {
+    specs.push({
+      type: 'transfer_failed',
+      severity: config.severities.transfer_failed,
+      dedupKey: 'withdrawals',
+      title: `${t.failedWithdrawals.count} withdrawal(s) failed in the last ${config.transfers.recentFailureWindowMinutes}m`,
+      evidence: {
+        count: t.failedWithdrawals.count,
+        sampleIds: t.failedWithdrawals.sampleIds,
+        windowMinutes: config.transfers.recentFailureWindowMinutes,
+      },
+    });
+  }
+  if (t.stuckOnchain.count > 0) {
+    specs.push({
+      type: 'transfer_stuck',
+      severity: config.severities.transfer_stuck,
+      dedupKey: 'onchain_transfers',
+      title: `${t.stuckOnchain.count} on-chain transfer(s) stuck in submitted > ${config.transfers.stuckMinutes}m`,
+      evidence: {
+        count: t.stuckOnchain.count,
+        oldestMinutes: t.stuckOnchain.oldestMinutes,
+        sampleIds: t.stuckOnchain.sampleIds,
+        thresholdMinutes: config.transfers.stuckMinutes,
+      },
+    });
+  }
+  if (t.stuckWithdrawals.count > 0) {
+    specs.push({
+      type: 'transfer_stuck',
+      severity: config.severities.transfer_stuck,
+      dedupKey: 'withdrawals',
+      title: `${t.stuckWithdrawals.count} withdrawal(s) stuck in processing > ${config.transfers.stuckMinutes}m`,
+      evidence: {
+        count: t.stuckWithdrawals.count,
+        oldestMinutes: t.stuckWithdrawals.oldestMinutes,
+        sampleIds: t.stuckWithdrawals.sampleIds,
+        thresholdMinutes: config.transfers.stuckMinutes,
+      },
+    });
+  }
+
   // G3 catch-all: a degraded/down health roll-up that no specific alert above
   // already named. Fires only when `specs` is empty, so it never double-pages.
   if (specs.length === 0 && healthStatus && healthStatus !== 'ok') {
@@ -139,5 +194,62 @@ export async function gatherOpsSnapshot(
   );
   const frozenComponents = frozenRows.map((r) => String(r['component']));
 
-  return { crons, reconciliation, tvlUsdc, frozenComponents };
+  const transfers = await gatherTransferHealth(db, config);
+
+  return { crons, reconciliation, tvlUsdc, frozenComponents, transfers };
+}
+
+/**
+ * Read-only gather of failed/stuck money transfers. Three independent conditions
+ * (failed withdrawals, stuck on-chain transfers, stuck processing withdrawals);
+ * each returns a count + oldest age + a bounded id sample for the alert evidence.
+ * Pure SELECTs — never writes, never touches the money path.
+ */
+export async function gatherTransferHealth(
+  db: OpsDb,
+  config: OpsConfig = OPS_DEFAULTS,
+): Promise<TransferHealth> {
+  const now = Date.now();
+  const failedSince = new Date(now - config.transfers.recentFailureWindowMinutes * 60_000);
+  const stuckBefore = new Date(now - config.transfers.stuckMinutes * 60_000);
+  const lim = config.transfers.sampleLimit;
+
+  const summarize = (
+    rows: Array<{ id: unknown; at: unknown }>,
+  ): TransferConditionHealth => ({
+    count: rows.length,
+    oldestMinutes: rows.length
+      ? Math.round((now - new Date(String(rows[0]!.at)).getTime()) / 60_000)
+      : null,
+    sampleIds: rows.slice(0, lim).map((r) => String(r.id)),
+  });
+
+  // Failed withdrawals within the lookback window (newest first → sample is recent).
+  const failedRows = await db
+    .select({ id: withdrawalRequests.id, at: withdrawalRequests.failedAt })
+    .from(withdrawalRequests)
+    .where(and(eq(withdrawalRequests.status, 'failed'), gte(withdrawalRequests.failedAt, failedSince)))
+    .orderBy(desc(withdrawalRequests.failedAt));
+
+  // On-chain transfers stuck in `submitted` past the threshold (oldest first).
+  const stuckOcRows = await db
+    .select({ id: onchainTransfers.id, at: onchainTransfers.submittedAt })
+    .from(onchainTransfers)
+    .where(and(eq(onchainTransfers.status, 'submitted'), lt(onchainTransfers.submittedAt, stuckBefore)))
+    .orderBy(asc(onchainTransfers.submittedAt));
+
+  // Withdrawals stuck in `processing` past the threshold (oldest first).
+  const stuckWdRows = await db
+    .select({ id: withdrawalRequests.id, at: withdrawalRequests.processingAt })
+    .from(withdrawalRequests)
+    .where(
+      and(eq(withdrawalRequests.status, 'processing'), lt(withdrawalRequests.processingAt, stuckBefore)),
+    )
+    .orderBy(asc(withdrawalRequests.processingAt));
+
+  return {
+    failedWithdrawals: summarize(failedRows),
+    stuckOnchain: summarize(stuckOcRows),
+    stuckWithdrawals: summarize(stuckWdRows),
+  };
 }

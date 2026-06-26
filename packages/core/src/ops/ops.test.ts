@@ -9,6 +9,11 @@ function healthy(): OpsSnapshot {
     reconciliation: { lastStatus: 'ok', ageMinutes: 5, driftUsdc: '0' },
     tvlUsdc: 100,
     frozenComponents: [],
+    transfers: {
+      failedWithdrawals: { count: 0, oldestMinutes: null, sampleIds: [] },
+      stuckOnchain: { count: 0, oldestMinutes: null, sampleIds: [] },
+      stuckWithdrawals: { count: 0, oldestMinutes: null, sampleIds: [] },
+    },
   };
 }
 
@@ -56,6 +61,54 @@ describe('evaluateOps (pure)', () => {
     expect(a.find((x) => x.type === 'freeze_active')?.evidence).toMatchObject({
       components: ['settlements'],
     });
+  });
+
+  it('failed withdrawal → transfer_failed (critical, dedupKey withdrawals)', () => {
+    const s = healthy();
+    s.transfers.failedWithdrawals = { count: 2, oldestMinutes: 10, sampleIds: ['w1', 'w2'] };
+    const a = evaluateOps(s);
+    const f = a.find((x) => x.type === 'transfer_failed');
+    expect(f?.severity).toBe('critical');
+    expect(f?.dedupKey).toBe('withdrawals');
+    expect(f?.evidence).toMatchObject({ count: 2, sampleIds: ['w1', 'w2'] });
+  });
+
+  it('stuck on-chain transfer → transfer_stuck (dedupKey onchain_transfers)', () => {
+    const s = healthy();
+    s.transfers.stuckOnchain = { count: 1, oldestMinutes: 45, sampleIds: ['t1'] };
+    const st = evaluateOps(s).find(
+      (x) => x.type === 'transfer_stuck' && x.dedupKey === 'onchain_transfers',
+    );
+    expect(st?.severity).toBe('warning');
+    expect(st?.evidence).toMatchObject({ oldestMinutes: 45 });
+  });
+
+  it('stuck processing withdrawal → transfer_stuck (dedupKey withdrawals)', () => {
+    const s = healthy();
+    s.transfers.stuckWithdrawals = { count: 1, oldestMinutes: 31, sampleIds: ['w9'] };
+    expect(
+      evaluateOps(s).some((x) => x.type === 'transfer_stuck' && x.dedupKey === 'withdrawals'),
+    ).toBe(true);
+  });
+
+  it('failed + stuck transfers coexist as distinct (type,dedupKey) alerts — no collision', () => {
+    const s = healthy();
+    s.transfers.failedWithdrawals = { count: 1, oldestMinutes: 5, sampleIds: ['w1'] };
+    s.transfers.stuckWithdrawals = { count: 1, oldestMinutes: 40, sampleIds: ['w2'] };
+    const a = evaluateOps(s);
+    // Both share dedupKey 'withdrawals' but differ by type → two separate alerts.
+    expect(a.filter((x) => x.dedupKey === 'withdrawals').map((x) => x.type).sort()).toEqual([
+      'transfer_failed',
+      'transfer_stuck',
+    ]);
+  });
+
+  it('a transfer alert suppresses the health_degraded catch-all (no double-page)', () => {
+    const s = healthy();
+    s.transfers.failedWithdrawals = { count: 1, oldestMinutes: 1, sampleIds: ['w1'] };
+    const a = evaluateOps(s, undefined, 'down');
+    expect(a.some((x) => x.type === 'transfer_failed')).toBe(true);
+    expect(a.some((x) => x.type === 'health_degraded')).toBe(false);
   });
 });
 
