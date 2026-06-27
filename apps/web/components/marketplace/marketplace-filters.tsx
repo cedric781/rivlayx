@@ -136,25 +136,41 @@ export function MarketplaceFilters() {
         ))}
       </select>
 
-      <input
+      <Input
+        label="Minimum stake"
+        hideLabel
         type="number"
         inputMode="decimal"
         min="0"
         placeholder="Min $"
         value={minStake}
         onChange={(e) => setMinStake(e.target.value)}
-        style={{ ...inputStyle, width: 90 }}
-        aria-label="Minimum stake"
+        fullWidth={false}
+        style={{
+          width: 90,
+          boxSizing: 'content-box',
+          padding: '0.4rem 0.55rem',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+          fontSize: 'var(--rx-font-size-base)',
+        }}
       />
-      <input
+      <Input
+        label="Maximum stake"
+        hideLabel
         type="number"
         inputMode="decimal"
         min="0"
         placeholder="Max $"
         value={maxStake}
         onChange={(e) => setMaxStake(e.target.value)}
-        style={{ ...inputStyle, width: 90 }}
-        aria-label="Maximum stake"
+        fullWidth={false}
+        style={{
+          width: 90,
+          boxSizing: 'content-box',
+          padding: '0.4rem 0.55rem',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+          fontSize: 'var(--rx-font-size-base)',
+        }}
       />
 
       <Button
