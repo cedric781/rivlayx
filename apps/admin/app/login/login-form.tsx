@@ -25,6 +25,7 @@ const buttonStyle = {
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +37,7 @@ export function LoginForm() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as {
@@ -63,6 +64,18 @@ export function LoginForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          disabled={busy}
+          style={inputStyle}
+        />
+      </label>
+      <label style={{ display: 'block', marginBottom: '1rem' }}>
+        Password
+        <input
+          type="password"
+          required
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           disabled={busy}
           style={inputStyle}
         />

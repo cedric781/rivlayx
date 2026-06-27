@@ -49,6 +49,12 @@ export const users = authSchema.table(
     username: varchar('username', { length: 20 }).notNull().unique(),
     displayName: varchar('display_name', { length: 80 }),
     status: varchar('status', { length: 16, enum: userStatusValues }).notNull().default('active'),
+    /**
+     * First-factor admin credential: a `scrypt$…` hash (see
+     * `@rivlayx/shared/password`). Null for accounts without a password set —
+     * such accounts cannot complete admin first-factor login (fail-closed).
+     */
+    passwordHash: text('password_hash'),
     mfaRequired: boolean('mfa_required').notNull().default(false),
     // ── C5: real TOTP MFA (per-admin) ──────────────────────────────────────
     /** AES-256-GCM blob of the TOTP secret. Null until enrollment begins. */

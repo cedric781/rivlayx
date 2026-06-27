@@ -154,6 +154,10 @@ importers:
       react:
         specifier: ^19.0.0
         version: 19.2.7
+    devDependencies:
+      '@rivlayx/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
 
   packages/core:
     dependencies:
@@ -252,6 +256,9 @@ importers:
       '@rivlayx/db':
         specifier: workspace:*
         version: link:../db
+      '@rivlayx/shared':
+        specifier: workspace:*
+        version: link:../shared
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@electric-sql/pglite@0.2.17)(@types/react@19.2.17)(postgres@3.4.9)(react@19.2.7)

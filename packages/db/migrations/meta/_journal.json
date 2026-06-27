@@ -134,6 +134,13 @@
       "when": 1782219718713,
       "tag": "0018_zippy_the_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782561496522,
+      "tag": "0019_admin_password_hash",
+      "breakpoints": true
     }
   ]
 }

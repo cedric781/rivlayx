@@ -1,61 +1,48 @@
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { userRoles, users } from '@rivlayx/db';
+import { userRoles } from '@rivlayx/db';
 import {
-  MockAuthProvider,
   buildCookieAttributes,
   createSession,
   defaultLimits,
   hasMinRole,
   requiresMfa,
+  verifyAdminCredentials,
 } from '@rivlayx/auth';
 import { getDb } from '@/lib/db';
 import { getEnv } from '@/lib/env';
 
-const provider = new MockAuthProvider();
-const Body = z.object({ email: z.string().email() });
+const Body = z.object({ email: z.string().email(), password: z.string().min(1) });
 
 export async function POST(request: Request) {
   const json: unknown = await request.json().catch(() => null);
   const parsed = Body.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: 'INVALID_INPUT', message: 'Valid email required' } },
-      { status: 400 },
-    );
-  }
-
-  let identity;
-  try {
-    const { token } = await provider.login({ email: parsed.data.email });
-    identity = await provider.verify(token);
-  } catch {
-    return NextResponse.json(
-      { error: { code: 'AUTH_FAILED', message: 'Sign-in failed' } },
+      { error: { code: 'INVALID_INPUT', message: 'Email and password are required' } },
       { status: 400 },
     );
   }
 
   const db = getDb();
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.privyId, identity.externalId))
-    .limit(1);
 
-  // Admin app NEVER creates new users on login — must be provisioned first.
-  if (!user) {
+  // First factor: real credential verification (replaces the dev-only
+  // email-only mock provider). Fail-closed — unknown email, no password set, or
+  // a wrong password all return the same generic rejection. MFA (below) is
+  // unchanged.
+  const credential = await verifyAdminCredentials(db, {
+    email: parsed.data.email,
+    password: parsed.data.password,
+  });
+  if (!credential.ok) {
     return NextResponse.json(
-      {
-        error: {
-          code: 'NOT_AUTHORIZED',
-          message: 'Account not provisioned for admin access',
-        },
-      },
-      { status: 403 },
+      { error: { code: 'AUTH_FAILED', message: 'Invalid email or password' } },
+      { status: 401 },
     );
   }
+  const user = credential.user;
+
   if (user.status !== 'active') {
     return NextResponse.json(
       { error: { code: 'USER_BANNED', message: 'Account is not active' } },

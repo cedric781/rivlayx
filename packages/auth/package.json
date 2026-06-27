@@ -31,5 +31,8 @@
     "react": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "@rivlayx/test-utils": "workspace:*"
   }
 }

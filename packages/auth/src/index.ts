@@ -24,6 +24,12 @@ export {
 export type { AuthProvider, LoginInput, LoginResult, VerifiedIdentity } from './provider';
 export { MockAuthProvider } from './providers/mock';
 export {
+  verifyAdminCredentials,
+  hashPassword,
+  verifyPassword,
+  type AdminCredentialResult,
+} from './credentials';
+export {
   ADMIN_PERMISSIONS,
   MFA_REQUIRED_ACTIONS,
   can,
