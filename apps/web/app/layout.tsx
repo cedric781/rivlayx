@@ -20,10 +20,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const body = (
     <body
       style={{
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: 'var(--rx-font-sans)',
         margin: 0,
-        background: '#0b0d10',
-        color: '#e6e8eb',
+        background: 'var(--rx-color-bg)',
+        color: 'var(--rx-color-text)',
         minHeight: '100vh',
       }}
     >

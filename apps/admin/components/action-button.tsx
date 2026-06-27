@@ -56,7 +56,7 @@ export function ActionButton({
     }
   }
 
-  const bg = tone === 'danger' ? '#a13a3a' : '#5b8def';
+  const bg = tone === 'danger' ? 'var(--rx-color-danger-button)' : 'var(--rx-color-primary)';
   return (
     <form onSubmit={onSubmit} style={{ display: 'inline-block', marginRight: 8 }}>
       <button
@@ -64,8 +64,8 @@ export function ActionButton({
         disabled={busy}
         style={{
           padding: '0.4rem 0.9rem',
-          background: busy ? '#2c3036' : bg,
-          color: 'white',
+          background: busy ? 'var(--rx-color-disabled-bg-dark)' : bg,
+          color: 'var(--rx-color-primary-contrast)',
           border: 'none',
           borderRadius: 4,
           cursor: busy ? 'not-allowed' : 'pointer',
@@ -76,7 +76,7 @@ export function ActionButton({
         {busy ? 'Working…' : label}
       </button>
       {error && (
-        <p role="alert" style={{ color: '#ff6b6b', margin: '0.25rem 0 0', fontSize: 12 }}>
+        <p role="alert" style={{ color: 'var(--rx-color-danger-fg)', margin: '0.25rem 0 0', fontSize: 12 }}>
           {error}
         </p>
       )}
