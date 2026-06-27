@@ -18,7 +18,12 @@ export async function GET(request: Request) {
   const locked = await ops.recordCronRun(db, 'settle', () =>
     cron.withAdvisoryLock(db, cron.CRON_LOCK_KEYS.settle, async () => {
       const settle = await bets.runSettlementCycle(db);
-      const enqueue = await payouts.queuePendingForSettledBets(db);
+      // When settlement is frozen the cycle hard-skips; halt payout enqueue too
+      // so nothing advances while the kill-switch is on.
+      const enqueue =
+        settle.skipped === 'frozen'
+          ? ({ skipped: 'frozen' } as const)
+          : await payouts.queuePendingForSettledBets(db);
       return { settle, enqueue };
     }),
   );
