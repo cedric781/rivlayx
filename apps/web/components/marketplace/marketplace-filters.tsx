@@ -5,6 +5,8 @@ import { useState } from 'react';
 import * as marketplace from '@rivlayx/core/marketplace/types';
 import { resolveTypeValues } from '@rivlayx/db/schema';
 import { humanizeCategory, humanizeResolveType } from '@/lib/marketplace/format';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 /** Exact creator-tier filter options (Sprint 16). */
 const TIER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
@@ -77,13 +79,20 @@ export function MarketplaceFilters() {
         marginBottom: '1.25rem',
       }}
     >
-      <input
+      <Input
+        label="Search bets"
+        hideLabel
         type="search"
         placeholder="Search bets…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        style={{ ...inputStyle, flex: '1 1 200px' }}
-        aria-label="Search bets"
+        fullWidth={false}
+        containerStyle={{ flex: '1 1 200px' }}
+        style={{
+          padding: '0.4rem 0.55rem',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+          fontSize: 'var(--rx-font-size-base)',
+        }}
       />
 
       <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} aria-label="Category">
@@ -148,15 +157,32 @@ export function MarketplaceFilters() {
         aria-label="Maximum stake"
       />
 
-      <button
+      <Button
         type="submit"
-        style={{ ...inputStyle, cursor: 'pointer', background: '#1f2937', color: '#fff', fontWeight: 600 }}
+        variant="primary"
+        size="sm"
+        style={{
+          padding: '0.4rem 0.55rem',
+          fontSize: 'var(--rx-font-size-base)',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+        }}
       >
         Apply
-      </button>
-      <button type="button" onClick={clear} style={{ ...inputStyle, cursor: 'pointer' }}>
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={clear}
+        style={{
+          padding: '0.4rem 0.55rem',
+          fontSize: 'var(--rx-font-size-base)',
+          fontWeight: 'var(--rx-font-weight-normal)',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+        }}
+      >
         Clear
-      </button>
+      </Button>
     </form>
   );
 }
