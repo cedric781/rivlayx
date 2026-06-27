@@ -1,10 +1,9 @@
 const TONES: Record<string, { bg: string; fg: string }> = {
-  green: { bg: 'var(--rx-color-success-bg-dark)', fg: 'var(--rx-color-success-fg)' },
-  red: { bg: 'var(--rx-color-danger-bg-dark)', fg: 'var(--rx-color-danger-fg)' },
-  yellow: { bg: 'var(--rx-color-warning-bg-dark)', fg: 'var(--rx-color-warning-fg)' },
-  // No dark info-surface token defined yet; keep the existing value until one exists.
-  blue: { bg: '#0d2a3f', fg: 'var(--rx-color-info-fg)' },
-  gray: { bg: 'var(--rx-color-surface-2)', fg: 'var(--rx-color-text-muted)' },
+  green: { bg: 'var(--rx-color-success-surface)', fg: 'var(--rx-color-success-fg)' },
+  red: { bg: 'var(--rx-color-danger-surface)', fg: 'var(--rx-color-danger-fg)' },
+  yellow: { bg: 'var(--rx-color-warning-surface)', fg: 'var(--rx-color-warning-fg)' },
+  blue: { bg: 'var(--rx-color-info-surface)', fg: 'var(--rx-color-info-fg)' },
+  gray: { bg: 'var(--rx-color-muted-surface)', fg: 'var(--rx-color-text-muted)' },
 };
 
 export function StatusBadge({

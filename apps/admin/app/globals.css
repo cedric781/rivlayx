@@ -54,6 +54,22 @@
   --rx-color-info: #5b8def;
   --rx-color-info-fg: #5b8def;
 
+  /* ── Semantic surfaces & interaction states (Step 3) ─────────────────── */
+  /* Tinted surfaces for badges/chips/callouts on the dark UI. The *-bg-dark
+     values above hold the source hex; these `*-surface` aliases give one
+     consistent vocabulary across families (info adds its own surface/border). */
+  --rx-color-info-surface: #0d2a3f;       /* blue badge fill */
+  --rx-color-info-border: #1c4a6e;
+  --rx-color-success-surface: var(--rx-color-success-bg-dark);
+  --rx-color-warning-surface: var(--rx-color-warning-bg-dark);
+  --rx-color-danger-surface: var(--rx-color-danger-bg-dark);
+  --rx-color-muted-surface: var(--rx-color-surface-2);  /* neutral chip fill */
+
+  /* Interaction states — defined for later adoption; not consumed yet. */
+  --rx-color-selected: var(--rx-color-primary);          /* selected accent */
+  --rx-color-selected-contrast: var(--rx-color-primary-contrast);
+  --rx-color-active: var(--rx-color-cta);                /* pressed/active fill */
+
   /* ── Admin-only ──────────────────────────────────────────────────────── */
   --rx-color-admin-banner: #5c1a1a;  /* "privileged actions are audited" bar */
 
