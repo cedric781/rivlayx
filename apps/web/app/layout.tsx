@@ -1,3 +1,4 @@
+import './globals.css';
 import type { ReactNode } from 'react';
 import { getEnv } from '@/lib/env';
 import { PrivyProviders } from '@/components/auth/privy-providers';

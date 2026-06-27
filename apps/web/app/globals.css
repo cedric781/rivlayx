@@ -1,0 +1,174 @@
+/*
+ * RivlayX design-token foundation (Frontend Step 1).
+ *
+ * Captures the app's EXISTING inline-style values as systematic CSS variables so
+ * later steps can converge components onto one source of truth. This file only
+ * DEFINES tokens and adds a conservative, purely-additive base layer (focus
+ * rings, cursor + transition foundations). It deliberately does NOT restyle the
+ * body or any component — existing inline styles still win, so visuals are
+ * unchanged. No layout redesign, no behavior change.
+ */
+
+:root {
+  /* ── Neutrals — dark app shell ───────────────────────────────────────── */
+  --rx-color-bg: #0b0d10;            /* app background */
+  --rx-color-surface: #13161a;       /* raised cards / panels */
+  --rx-color-surface-2: #1a1d21;     /* inputs / inset surfaces */
+  --rx-color-border: #2c3036;        /* default border on dark */
+  --rx-color-text: #e6e8eb;          /* primary text on dark */
+  --rx-color-text-muted: #9fa6ad;    /* secondary text */
+  --rx-color-text-faint: #6b7280;    /* tertiary / disabled-ish text */
+
+  /* ── Neutrals — light "paper" surfaces (web forms/cards) ─────────────── */
+  --rx-color-paper: #ffffff;         /* light form/card surface */
+  --rx-color-paper-ink: #1f2937;     /* dark text on paper / dark CTA */
+  --rx-color-paper-border: #cbd5e1;  /* default input/card border on paper */
+  --rx-color-paper-border-muted: #e5e7eb;
+  --rx-color-paper-border-strong: #d1d5db;
+
+  /* ── Brand / primary ─────────────────────────────────────────────────── */
+  --rx-color-primary: #5b8def;       /* links, primary accent */
+  --rx-color-primary-contrast: #ffffff;
+  --rx-color-cta: #1f2937;           /* dark primary CTA button (web forms) */
+  --rx-color-cta-contrast: #ffffff;
+
+  /* ── Semantic — danger (canonical + existing contextual variants) ────── */
+  --rx-color-danger: #b91c1c;            /* canonical danger */
+  --rx-color-danger-fg: #ff6b6b;         /* danger text on dark */
+  --rx-color-danger-bg: #fee2e2;         /* danger surface (paper) */
+  --rx-color-danger-bg-dark: #3a0d0d;    /* danger surface (dark) */
+  --rx-color-danger-button: #a13a3a;     /* destructive button fill */
+
+  /* ── Semantic — success ──────────────────────────────────────────────── */
+  --rx-color-success: #15803d;           /* canonical success text/border */
+  --rx-color-success-fg: #5fd47a;        /* success text on dark */
+  --rx-color-success-bg: #f0fdf4;        /* success surface (paper) */
+  --rx-color-success-bg-dark: #103a1f;   /* success surface (dark) */
+  --rx-color-success-border: #bbf7d0;
+
+  /* ── Semantic — warning ──────────────────────────────────────────────── */
+  --rx-color-warning: #b45309;           /* canonical warning */
+  --rx-color-warning-fg: #f0c674;        /* warning text on dark */
+  --rx-color-warning-bg-dark: #3a2c0a;   /* warning surface (dark) */
+
+  /* ── Semantic — info (alias of primary for now) ──────────────────────── */
+  --rx-color-info: #5b8def;
+  --rx-color-info-fg: #5b8def;
+
+  /* ── Typography ──────────────────────────────────────────────────────── */
+  --rx-font-sans: system-ui, -apple-system, sans-serif;
+  --rx-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  --rx-font-size-xs: 0.6875rem;  /* 11px */
+  --rx-font-size-sm: 0.8125rem;  /* 13px */
+  --rx-font-size-base: 0.875rem; /* 14px */
+  --rx-font-size-md: 1rem;       /* 16px */
+  --rx-font-size-lg: 1.125rem;   /* 18px */
+  --rx-font-size-xl: 1.25rem;    /* 20px */
+  --rx-font-size-2xl: 1.5rem;    /* 24px */
+
+  --rx-font-weight-normal: 400;
+  --rx-font-weight-medium: 500;
+  --rx-font-weight-semibold: 600;
+  --rx-font-weight-bold: 700;
+
+  --rx-line-tight: 1.2;
+  --rx-line-snug: 1.35;
+  --rx-line-normal: 1.5;
+
+  --rx-letter-spacing-wide: 0.4px; /* uppercase labels */
+
+  /* ── Spacing scale (8pt-aligned) ─────────────────────────────────────── */
+  --rx-space-0: 0;
+  --rx-space-1: 0.25rem;  /* 4 */
+  --rx-space-2: 0.5rem;   /* 8 */
+  --rx-space-3: 0.75rem;  /* 12 */
+  --rx-space-4: 1rem;     /* 16 */
+  --rx-space-5: 1.5rem;   /* 24 */
+  --rx-space-6: 2rem;     /* 32 */
+  --rx-space-8: 3rem;     /* 48 */
+
+  /* ── Radius ──────────────────────────────────────────────────────────── */
+  --rx-radius-sm: 4px;
+  --rx-radius-md: 6px;
+  --rx-radius-lg: 8px;
+  --rx-radius-xl: 12px;
+  --rx-radius-pill: 999px;
+
+  /* ── Borders ─────────────────────────────────────────────────────────── */
+  --rx-border-width: 1px;
+  --rx-border-width-strong: 2px;
+
+  /* ── Shadows (dark-theme tuned; unused until components adopt them) ───── */
+  --rx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --rx-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --rx-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  /* ── Focus ring ──────────────────────────────────────────────────────── */
+  --rx-focus-ring-color: #5b8def;
+  --rx-focus-ring-width: 2px;
+  --rx-focus-ring-offset: 2px;
+
+  /* ── Disabled states ─────────────────────────────────────────────────── */
+  --rx-disabled-opacity: 0.55;
+  --rx-color-disabled-bg: #9ca3af;       /* web disabled button fill */
+  --rx-color-disabled-bg-dark: #2c3036;  /* dark disabled fill */
+
+  /* ── Motion ──────────────────────────────────────────────────────────── */
+  --rx-transition-fast: 120ms ease;
+  --rx-transition: 160ms ease;
+}
+
+/* ── Base layer — additive foundations only (no static restyle) ────────── */
+
+/* Document the app font on <body>; existing inline body styles still win. */
+body {
+  font-family: var(--rx-font-sans);
+}
+
+/* Form controls inherit the app font family (native controls otherwise differ). */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* Keyboard focus ring — previously absent everywhere. Only shows on
+   keyboard focus, never on mouse, so it adds no visual noise to pointer use. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--rx-focus-ring-width) solid var(--rx-focus-ring-color);
+  outline-offset: var(--rx-focus-ring-offset);
+  border-radius: var(--rx-radius-sm);
+}
+
+/* Cursor foundations — match the patterns already set inline. */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+/* Interactive-state transition foundation — animates state changes only;
+   it does not alter any element's resting appearance. */
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  [role='button'] {
+    transition:
+      background-color var(--rx-transition),
+      border-color var(--rx-transition),
+      color var(--rx-transition),
+      box-shadow var(--rx-transition),
+      outline-color var(--rx-transition);
+  }
+}
