@@ -66,6 +66,16 @@
   --rx-color-danger-surface: var(--rx-color-danger-bg-dark);
   --rx-color-muted-surface: var(--rx-color-surface-2);  /* neutral chip fill */
 
+  /* Paper-context tints (light cards). The dark *-surface tokens above are for
+     the dark shell; these complete the palette for badges/chips on white cards. */
+  --rx-color-neutral-bg: #f1f5f9;     /* neutral chip fill on paper */
+  --rx-color-neutral-fg: #64748b;     /* neutral chip text on paper */
+  --rx-color-warning-bg: #fef9c3;     /* warning chip fill on paper */
+  --rx-color-info-bg: #dbeafe;        /* info chip fill on paper */
+  --rx-color-info-strong: #1d4ed8;    /* info chip text on paper */
+  --rx-color-accent: #4458c7;         /* category/accent text on paper */
+  --rx-color-accent-bg: #eef2ff;      /* category/accent chip fill on paper */
+
   /* Interaction states — defined for later adoption; not consumed yet. */
   --rx-color-selected: var(--rx-color-primary);          /* selected accent */
   --rx-color-selected-contrast: var(--rx-color-primary-contrast);
@@ -187,4 +197,51 @@ textarea:disabled,
       box-shadow var(--rx-transition),
       outline-color var(--rx-transition);
   }
+}
+
+/* ── Shared primitive helpers (Frontend Polish F1) ─────────────────────────
+   Class hooks for the Card/Skeleton primitives — only the dynamic bits that
+   inline styles can't express (hover, keyframe animation, line clamping). */
+
+.rx-card--interactive {
+  transition:
+    border-color var(--rx-transition),
+    box-shadow var(--rx-transition),
+    transform var(--rx-transition);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rx-card--interactive:hover {
+    transform: translateY(-1px);
+  }
+}
+.rx-card--interactive:hover {
+  border-color: var(--rx-color-paper-border-strong);
+  box-shadow: var(--rx-shadow-md);
+}
+
+@keyframes rx-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.rx-skeleton {
+  animation: rx-skeleton-pulse 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rx-skeleton {
+    animation: none;
+  }
+}
+
+/* Multi-line truncation for card titles. */
+.rx-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
