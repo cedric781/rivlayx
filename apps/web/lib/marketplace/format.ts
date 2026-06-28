@@ -1,10 +1,7 @@
 /** Presentation helpers for the marketplace UI. Pure + framework-agnostic. */
 
-export function formatUsdc(amount: string | number): string {
-  const n = typeof amount === 'string' ? Number(amount) : amount;
-  if (!Number.isFinite(n)) return `${amount} USDC`;
-  return `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`;
-}
+/** Re-exported from the canonical money helper; see `@/lib/format`. */
+export { formatUsdc } from '@/lib/format';
 
 export function humanizeCategory(category: string): string {
   if (category === 'open_objective') return 'Open Objective';

@@ -41,7 +41,7 @@ export function DepositsTable({ deposits, network, emptyMessage }: DepositsTable
       <tbody>
         {deposits.map((d) => (
           <tr key={d.id}>
-            <td style={cellStyle}>{formatUsdc(d.amountUsdc)} USDC</td>
+            <td style={cellStyle}>{formatUsdc(d.amountUsdc)}</td>
             <td style={cellStyle}>
               <DepositStatusBadge status={d.status} />
             </td>

@@ -19,10 +19,10 @@ export function BalanceCard({ availableUsdc, lockedUsdc }: BalanceCardProps) {
         Available balance
       </div>
       <div style={{ fontSize: 36, fontWeight: 700, marginTop: '0.25rem' }}>
-        {formatUsdc(availableUsdc)} <span style={{ fontSize: 18, opacity: 0.7 }}>USDC</span>
+        {formatUsdc(availableUsdc)}
       </div>
       <div style={{ marginTop: '0.75rem', fontSize: 14, opacity: 0.65 }}>
-        Locked in active bets: {formatUsdc(lockedUsdc)} USDC
+        Locked in active bets: {formatUsdc(lockedUsdc)}
       </div>
     </section>
   );
