@@ -1,6 +1,7 @@
 import type { Deposit } from '@rivlayx/db';
 import { DepositStatusBadge } from './deposit-status-badge';
 import { formatUsdc, truncateAddress } from './format';
+import { TableScroll } from '@/components/ui/table-scroll';
 
 export interface DepositsTableProps {
   deposits: Deposit[];
@@ -28,7 +29,8 @@ export function DepositsTable({ deposits, network, emptyMessage }: DepositsTable
   }
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <TableScroll>
+      <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
       <thead>
         <tr>
           <th style={{ ...cellStyle, textAlign: 'left' as const, opacity: 0.6 }}>Amount</th>
@@ -64,6 +66,7 @@ export function DepositsTable({ deposits, network, emptyMessage }: DepositsTable
           </tr>
         ))}
       </tbody>
-    </table>
+      </table>
+    </TableScroll>
   );
 }

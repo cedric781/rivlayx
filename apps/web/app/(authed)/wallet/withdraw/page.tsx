@@ -6,6 +6,8 @@ import { ledger } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
 import { formatUsdc } from '@/lib/format';
 import { WithdrawForm } from '@/components/wallet/withdraw-form';
+import { PageContainer } from '@/components/ui/page-container';
+import { TableScroll } from '@/components/ui/table-scroll';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Withdraw — RivlayX' };
@@ -41,7 +43,7 @@ export default async function WithdrawPage() {
     .limit(10);
 
   return (
-    <main style={{ maxWidth: 640, margin: '2rem auto', padding: '0 1rem' }}>
+    <PageContainer size="sm">
       <Link href="/wallet" style={{ color: '#5b8def', fontSize: 13 }}>
         ← Back to wallet
       </Link>
@@ -61,7 +63,8 @@ export default async function WithdrawPage() {
         {requests.length === 0 ? (
           <p style={{ opacity: 0.6, fontSize: 13 }}>No withdrawal requests yet.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <TableScroll>
+          <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ textAlign: 'left', opacity: 0.6 }}>
                 <th style={{ padding: '0.4rem 0' }}>Requested</th>
@@ -87,8 +90,9 @@ export default async function WithdrawPage() {
               ))}
             </tbody>
           </table>
+          </TableScroll>
         )}
       </section>
-    </main>
+    </PageContainer>
   );
 }

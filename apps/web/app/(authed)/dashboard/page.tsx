@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
 import { wallets } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
+import { PageContainer } from '@/components/ui/page-container';
 import { LogoutButton } from './logout-button';
 
 export const metadata = { title: 'Dashboard — RivlayX' };
@@ -12,18 +13,20 @@ export default async function DashboardPage() {
   const [wallet] = await getDb().select().from(wallets).where(eq(wallets.userId, user.id)).limit(1);
 
   return (
-    <main style={{ maxWidth: 720, margin: '4rem auto', padding: '0 1rem' }}>
+    <PageContainer size="md">
       <header
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 'var(--rx-space-3)',
+          flexWrap: 'wrap',
           borderBottom: '1px solid #2c3036',
           paddingBottom: '1rem',
         }}
       >
-        <h1 style={{ margin: 0 }}>Dashboard</h1>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <h1 style={{ margin: 0, fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Dashboard</h1>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <Link
             href="/bets/new"
             style={{
@@ -72,6 +75,6 @@ export default async function DashboardPage() {
         <p>Locked: 0.000000 USDC</p>
         <p style={{ fontSize: 12, opacity: 0.6 }}>Ledger and deposit flow arrive in Sprint 2.</p>
       </section>
-    </main>
+    </PageContainer>
   );
 }

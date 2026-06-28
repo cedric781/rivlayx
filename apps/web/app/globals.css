@@ -152,6 +152,18 @@ body {
   font-family: var(--rx-font-sans);
 }
 
+/* Responsive foundation (Phase A): stop iOS landscape font inflation and keep
+   replaced elements from forcing horizontal overflow on small screens. */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+img,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
 /* Form controls inherit the app font family (native controls otherwise differ). */
 button,
 input,

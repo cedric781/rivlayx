@@ -7,6 +7,7 @@ import { betsHref, type RawSearchParams } from '@/lib/marketplace/href';
 import { SectionTabs } from '@/components/marketplace/section-tabs';
 import { MarketplaceFilters } from '@/components/marketplace/marketplace-filters';
 import { BetCard } from '@/components/marketplace/bet-card';
+import { PageContainer } from '@/components/ui/page-container';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Open bets — RivlayX' };
@@ -24,9 +25,9 @@ export default async function BetsPage({
   const result = await marketplace.listMarketplaceBets(db, params);
 
   return (
-    <main style={{ maxWidth: 1040, margin: '2rem auto', padding: '0 1rem' }}>
+    <PageContainer size="xl">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <h1 style={{ marginBottom: 4 }}>Open bets</h1>
+        <h1 style={{ marginBottom: 4, fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Open bets</h1>
         <Link
           href="/bets/new"
           style={{
@@ -68,7 +69,7 @@ export default async function BetsPage({
       )}
 
       <Pagination result={result} searchParams={sp} />
-    </main>
+    </PageContainer>
   );
 }
 

@@ -8,6 +8,7 @@ import { getEnv } from '@/lib/env';
 import { BalanceCard } from '@/components/wallet/balance-card';
 import { DepositsTable } from '@/components/wallet/deposits-table';
 import { truncateAddress } from '@/components/wallet/format';
+import { PageContainer } from '@/components/ui/page-container';
 
 export const metadata = { title: 'Wallet — RivlayX' };
 
@@ -30,17 +31,19 @@ export default async function WalletPage() {
     .limit(5);
 
   return (
-    <main style={{ maxWidth: 880, margin: '2rem auto', padding: '0 1rem' }}>
+    <PageContainer size="lg">
       <header
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          gap: 'var(--rx-space-3)',
+          flexWrap: 'wrap',
           marginBottom: '2rem',
         }}
       >
-        <h1 style={{ margin: 0 }}>Wallet</h1>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <h1 style={{ margin: 0, fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Wallet</h1>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <Link
             href="/wallet/withdraw"
             style={{
@@ -124,6 +127,6 @@ export default async function WalletPage() {
           Wallet: {truncateAddress(primaryWallet.address, 6, 6)}
         </p>
       )}
-    </main>
+    </PageContainer>
   );
 }

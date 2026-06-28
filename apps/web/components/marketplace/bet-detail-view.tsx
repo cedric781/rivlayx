@@ -10,6 +10,7 @@ import { ShareLink } from './share-link';
 import { StatusBadge } from './status-badge';
 import { AcceptBetCard } from './accept-bet-card';
 import { ReputationBadge } from '@/components/reputation/reputation-badge';
+import { PageContainer } from '@/components/ui/page-container';
 
 /** Signed-in viewer context, or `null` for anonymous visitors. */
 export interface BetDetailViewer {
@@ -37,7 +38,7 @@ export function BetDetailView({
   const expired = bet.expiresAt ? new Date(bet.expiresAt).getTime() <= Date.now() : false;
   const isCreator = viewer?.userId === bet.creatorUserId;
   return (
-    <main style={{ maxWidth: 760, margin: '2rem auto', padding: '0 1rem' }}>
+    <PageContainer size="md">
       <Link href="/bets" style={{ color: '#5b8def', fontSize: 13 }}>
         ← Back to marketplace
       </Link>
@@ -131,7 +132,7 @@ export function BetDetailView({
       </div>
 
       {isOpen ? renderAcceptSection() : null}
-    </main>
+    </PageContainer>
   );
 
   function renderAcceptSection() {

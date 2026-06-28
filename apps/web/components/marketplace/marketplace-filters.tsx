@@ -152,9 +152,9 @@ export function MarketplaceFilters() {
         value={minStake}
         onChange={(e) => setMinStake(e.target.value)}
         fullWidth={false}
+        containerStyle={{ flex: '1 1 110px', minWidth: 0 }}
         style={{
-          width: 90,
-          boxSizing: 'content-box',
+          width: '100%',
           padding: '0.4rem 0.55rem',
           borderColor: 'var(--rx-color-paper-border-strong)',
           fontSize: 'var(--rx-font-size-base)',
@@ -170,9 +170,9 @@ export function MarketplaceFilters() {
         value={maxStake}
         onChange={(e) => setMaxStake(e.target.value)}
         fullWidth={false}
+        containerStyle={{ flex: '1 1 110px', minWidth: 0 }}
         style={{
-          width: 90,
-          boxSizing: 'content-box',
+          width: '100%',
           padding: '0.4rem 0.55rem',
           borderColor: 'var(--rx-color-paper-border-strong)',
           fontSize: 'var(--rx-font-size-base)',
