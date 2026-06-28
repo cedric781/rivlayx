@@ -4,6 +4,7 @@ import { requireSession } from '@rivlayx/auth/next';
 import { wallets, withdrawalRequests } from '@rivlayx/db';
 import { ledger } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
+import { formatUsdc } from '@/lib/format';
 import { WithdrawForm } from '@/components/wallet/withdraw-form';
 
 export const dynamic = 'force-dynamic';
@@ -75,7 +76,7 @@ export default async function WithdrawPage() {
                   <td style={{ padding: '0.4rem 0' }}>
                     {new Date(r.createdAt).toISOString().slice(0, 16).replace('T', ' ')}
                   </td>
-                  <td>{r.amountUsdc} USDC</td>
+                  <td>{formatUsdc(r.amountUsdc)}</td>
                   <td>
                     <code style={{ fontSize: 12 }}>
                       {r.destinationWallet.slice(0, 6)}…{r.destinationWallet.slice(-6)}
