@@ -8,11 +8,13 @@ import type { ReactNode } from 'react';
 export interface EmptyStateProps {
   title: string;
   hint?: string;
+  /** Optional leading icon (e.g. one of the shared icons). */
+  icon?: ReactNode;
   /** Optional CTA or other action rendered below the hint. */
   action?: ReactNode;
 }
 
-export function EmptyState({ title, hint, action }: EmptyStateProps) {
+export function EmptyState({ title, hint, icon, action }: EmptyStateProps) {
   return (
     <div
       style={{
@@ -21,6 +23,19 @@ export function EmptyState({ title, hint, action }: EmptyStateProps) {
         color: 'var(--rx-color-text-muted)',
       }}
     >
+      {icon ? (
+        <div
+          aria-hidden="true"
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            marginBottom: 'var(--rx-space-3)',
+            color: 'var(--rx-color-text-faint)',
+          }}
+        >
+          {icon}
+        </div>
+      ) : null}
       <p
         style={{
           margin: 0,

@@ -1,7 +1,10 @@
+import Link from 'next/link';
 import type { Deposit } from '@rivlayx/db';
 import { DepositStatusBadge } from './deposit-status-badge';
 import { formatUsdc, truncateAddress } from './format';
 import { TableScroll } from '@/components/ui/table-scroll';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IconArrowDownCircle } from '@/components/ui/icons';
 
 export interface DepositsTableProps {
   deposits: Deposit[];
@@ -24,7 +27,27 @@ function explorerHref(signature: string, network: 'devnet' | 'mainnet-beta'): st
 export function DepositsTable({ deposits, network, emptyMessage }: DepositsTableProps) {
   if (deposits.length === 0) {
     return (
-      <p style={{ opacity: 0.6, fontStyle: 'italic' }}>{emptyMessage ?? 'No deposits yet.'}</p>
+      <EmptyState
+        icon={<IconArrowDownCircle width={32} height={32} />}
+        title="No deposits yet"
+        hint={emptyMessage ?? 'Deposited USDC will show up here once detected on-chain.'}
+        action={
+          <Link
+            href="/wallet/deposit"
+            style={{
+              display: 'inline-block',
+              padding: '0.55rem 1.3rem',
+              borderRadius: 'var(--rx-radius-lg)',
+              background: 'var(--rx-color-primary)',
+              color: 'var(--rx-color-primary-contrast)',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            Deposit USDC
+          </Link>
+        }
+      />
     );
   }
 

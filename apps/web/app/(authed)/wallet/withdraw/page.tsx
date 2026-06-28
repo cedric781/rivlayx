@@ -8,6 +8,8 @@ import { formatUsdc } from '@/lib/format';
 import { WithdrawForm } from '@/components/wallet/withdraw-form';
 import { PageContainer } from '@/components/ui/page-container';
 import { TableScroll } from '@/components/ui/table-scroll';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IconArrowUpCircle } from '@/components/ui/icons';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Withdraw — RivlayX' };
@@ -61,7 +63,11 @@ export default async function WithdrawPage() {
       <section style={{ marginTop: '2.5rem' }}>
         <h2 style={{ fontSize: 16 }}>Your requests</h2>
         {requests.length === 0 ? (
-          <p style={{ opacity: 0.6, fontSize: 13 }}>No withdrawal requests yet.</p>
+          <EmptyState
+            icon={<IconArrowUpCircle width={32} height={32} />}
+            title="No withdrawals yet"
+            hint="Your withdrawal requests and their status will appear here."
+          />
         ) : (
           <TableScroll>
           <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>

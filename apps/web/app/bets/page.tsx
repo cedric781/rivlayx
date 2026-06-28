@@ -8,6 +8,8 @@ import { SectionTabs } from '@/components/marketplace/section-tabs';
 import { MarketplaceFilters } from '@/components/marketplace/marketplace-filters';
 import { BetCard } from '@/components/marketplace/bet-card';
 import { PageContainer } from '@/components/ui/page-container';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IconSearch } from '@/components/ui/icons';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Open bets — RivlayX' };
@@ -20,6 +22,15 @@ export default async function BetsPage({
   const sp = await searchParams;
   const params = parseMarketplaceParams(sp);
   const section = params.section ?? 'newest';
+  const hasFilters = Boolean(
+    sp['q'] ||
+      sp['category'] ||
+      sp['sport'] ||
+      sp['resolveType'] ||
+      sp['tier'] ||
+      sp['minStake'] ||
+      sp['maxStake'],
+  );
 
   const db = getDb();
   const result = await marketplace.listMarketplaceBets(db, params);
@@ -53,7 +64,35 @@ export default async function BetsPage({
       </Suspense>
 
       {result.items.length === 0 ? (
-        <p style={{ opacity: 0.6, padding: '2rem 0' }}>No open bets match these filters.</p>
+        hasFilters ? (
+          <EmptyState
+            icon={<IconSearch width={32} height={32} />}
+            title="No bets match your filters"
+            hint="Try widening or clearing your filters to see more open bets."
+          />
+        ) : (
+          <EmptyState
+            icon={<IconSearch width={32} height={32} />}
+            title="No open bets yet"
+            hint="There are no open bets right now — be the first to create one."
+            action={
+              <Link
+                href="/bets/new"
+                style={{
+                  display: 'inline-block',
+                  padding: '0.55rem 1.3rem',
+                  borderRadius: 'var(--rx-radius-lg)',
+                  background: 'var(--rx-color-cta)',
+                  color: 'var(--rx-color-cta-contrast)',
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                + Create bet
+              </Link>
+            }
+          />
+        )
       ) : (
         <div
           style={{
