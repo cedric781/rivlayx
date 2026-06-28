@@ -1,33 +1,62 @@
 import { PageContainer } from '@/components/ui/page-container';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const SECTIONS = ['account', 'wallet', 'balance'];
+const STATS = ['s1', 's2', 's3', 's4'];
+const ROWS = ['r1', 'r2', 'r3'];
 
-/** Dashboard loading skeleton. */
+/** Dashboard loading skeleton — mirrors the redesigned layout to avoid shift. */
 export default function Loading() {
   return (
-    <PageContainer size="md">
+    <PageContainer size="lg">
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 'var(--rx-space-3)',
+          alignItems: 'flex-end',
+          gap: 'var(--rx-space-4)',
           flexWrap: 'wrap',
           borderBottom: '1px solid var(--rx-color-border)',
-          paddingBottom: '1rem',
+          paddingBottom: 'var(--rx-space-5)',
         }}
       >
-        <Skeleton width={160} height={28} />
-        <Skeleton width={120} height={36} radius="var(--rx-radius-lg)" />
+        <Skeleton width={220} height={32} />
+        <Skeleton width={130} height={38} radius="var(--rx-radius-lg)" />
       </div>
-      {SECTIONS.map((k) => (
-        <section key={k} style={{ marginTop: 'var(--rx-space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--rx-space-2)' }}>
-          <Skeleton width={140} height={20} />
-          <Skeleton width="70%" height={14} />
-          <Skeleton width="50%" height={14} />
-        </section>
-      ))}
+
+      {/* Balance hero + quick actions */}
+      <div
+        style={{
+          marginTop: 'var(--rx-space-6)',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: 'var(--rx-space-4)',
+        }}
+      >
+        <Skeleton height={148} radius="var(--rx-radius-xl)" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--rx-space-3)' }}>
+          {STATS.map((k) => (
+            <Skeleton key={k} height={68} radius="var(--rx-radius-lg)" />
+          ))}
+        </div>
+      </div>
+
+      {/* At a glance */}
+      <div style={{ marginTop: 'var(--rx-space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--rx-space-3)' }}>
+        <Skeleton width={120} height={22} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 'var(--rx-space-3)' }}>
+          {STATS.map((k) => (
+            <Skeleton key={k} height={84} radius="var(--rx-radius-xl)" />
+          ))}
+        </div>
+      </div>
+
+      {/* Recent activity */}
+      <div style={{ marginTop: 'var(--rx-space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--rx-space-2)' }}>
+        <Skeleton width={160} height={22} />
+        {ROWS.map((k) => (
+          <Skeleton key={k} height={56} radius="var(--rx-radius-lg)" />
+        ))}
+      </div>
     </PageContainer>
   );
 }

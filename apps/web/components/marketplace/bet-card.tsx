@@ -28,7 +28,18 @@ export function BetCard({ bet }: { bet: marketplace.MarketplaceListItem }) {
             <Badge tone="accent">{humanizeCategory(bet.category)}</Badge>
           </div>
           <span
-            style={{ fontSize: 'var(--rx-font-size-xs)', color: 'var(--rx-color-neutral-fg)' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 'var(--rx-font-size-xs)',
+              fontWeight: 'var(--rx-font-weight-semibold)',
+              color: 'var(--rx-color-neutral-fg)',
+              background: 'var(--rx-color-neutral-bg)',
+              borderRadius: 'var(--rx-radius-pill)',
+              padding: '1px 8px',
+              whiteSpace: 'nowrap',
+            }}
           >
             {formatExpiry(bet.expiresAt)}
           </span>
@@ -48,14 +59,6 @@ export function BetCard({ bet }: { bet: marketplace.MarketplaceListItem }) {
           {bet.title}
         </h3>
 
-        {/* Creator reputation */}
-        <div style={{ display: 'flex', gap: 'var(--rx-space-2)', alignItems: 'center' }}>
-          <span style={{ fontSize: 'var(--rx-font-size-xs)', color: 'var(--rx-color-neutral-fg)' }}>
-            Creator
-          </span>
-          <ReputationBadge tier={bet.creatorTier} provisional={bet.creatorProvisional} size="sm" />
-        </div>
-
         {/* Stake + payout — the primary information */}
         <div
           style={{
@@ -64,15 +67,32 @@ export function BetCard({ bet }: { bet: marketplace.MarketplaceListItem }) {
             flexWrap: 'wrap',
             borderTop: '1px solid var(--rx-color-paper-border-muted)',
             paddingTop: 'var(--rx-space-3)',
+            marginTop: 'auto',
           }}
         >
           <Metric label="Stake / side" value={formatUsdc(bet.stakePerSideUsdc)} />
           <Metric label="Winner takes" value={formatUsdc(bet.potUsdc)} emphasis />
         </div>
 
-        {/* Resolution method */}
-        <div style={{ fontSize: 'var(--rx-font-size-xs)', color: 'var(--rx-color-neutral-fg)' }}>
-          {humanizeResolveType(bet.resolveType)} resolution
+        {/* Creator + resolution — supporting meta */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 'var(--rx-space-2)',
+            flexWrap: 'wrap',
+            borderTop: '1px solid var(--rx-color-paper-border-muted)',
+            paddingTop: 'var(--rx-space-3)',
+          }}
+        >
+          <span style={{ display: 'flex', gap: 'var(--rx-space-2)', alignItems: 'center' }}>
+            <span style={{ fontSize: 'var(--rx-font-size-xs)', color: 'var(--rx-color-neutral-fg)' }}>by</span>
+            <ReputationBadge tier={bet.creatorTier} provisional={bet.creatorProvisional} size="sm" />
+          </span>
+          <span style={{ fontSize: 'var(--rx-font-size-xs)', color: 'var(--rx-color-neutral-fg)' }}>
+            {humanizeResolveType(bet.resolveType)} resolution
+          </span>
         </div>
       </Card>
     </Link>

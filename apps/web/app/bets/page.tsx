@@ -37,25 +37,46 @@ export default async function BetsPage({
 
   return (
     <PageContainer size="xl">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <h1 style={{ marginBottom: 4, fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Open bets</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 'var(--rx-space-4)', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 'var(--rx-font-size-xs)',
+              textTransform: 'uppercase',
+              letterSpacing: 'var(--rx-letter-spacing-wide)',
+              color: 'var(--rx-color-text-muted)',
+              fontWeight: 'var(--rx-font-weight-semibold)',
+            }}
+          >
+            Marketplace
+          </p>
+          <h1 style={{ margin: 'var(--rx-space-1) 0 0', fontSize: 'clamp(1.5rem, 4vw, 2rem)', lineHeight: 'var(--rx-line-tight)' }}>
+            Open bets
+          </h1>
+        </div>
         <Link
           href="/bets/new"
           style={{
-            padding: '0.5rem 1.1rem',
-            borderRadius: 8,
-            background: '#1f2937',
-            color: '#fff',
-            fontWeight: 600,
+            padding: '0.55rem 1.2rem',
+            borderRadius: 'var(--rx-radius-lg)',
+            background: 'var(--rx-color-primary)',
+            color: 'var(--rx-color-primary-contrast)',
+            fontWeight: 'var(--rx-font-weight-semibold)',
             textDecoration: 'none',
-            fontSize: 14,
+            fontSize: 'var(--rx-font-size-base)',
+            whiteSpace: 'nowrap',
           }}
         >
           + Create bet
         </Link>
       </div>
-      <p style={{ marginTop: 0, opacity: 0.6, fontSize: 14 }}>
-        Browse open wagers. {result.total} match your filters.
+      <p style={{ margin: 'var(--rx-space-2) 0 var(--rx-space-5)', color: 'var(--rx-color-text-muted)', fontSize: 'var(--rx-font-size-base)' }}>
+        Browse open wagers —{' '}
+        <strong style={{ color: 'var(--rx-color-text)', fontWeight: 'var(--rx-font-weight-semibold)' }}>
+          {result.total}
+        </strong>{' '}
+        {result.total === 1 ? 'bet matches' : 'bets match'} your filters.
       </p>
 
       <SectionTabs active={section} searchParams={sp} />
@@ -122,24 +143,36 @@ function Pagination({
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   if (totalPages <= 1) return null;
 
+  const pageLink: React.CSSProperties = {
+    color: 'var(--rx-color-primary)',
+    textDecoration: 'none',
+    fontWeight: 'var(--rx-font-weight-semibold)',
+    fontSize: 'var(--rx-font-size-sm)',
+  };
+  const pageDisabled: React.CSSProperties = {
+    color: 'var(--rx-color-text-faint)',
+    opacity: 0.5,
+    fontSize: 'var(--rx-font-size-sm)',
+  };
+
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', gap: 12, alignItems: 'center', marginTop: '1.5rem' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--rx-space-4)', alignItems: 'center', marginTop: 'var(--rx-space-6)' }}>
       {result.page > 1 ? (
-        <Link href={betsHref(searchParams, { page: String(result.page - 1) })} style={{ color: '#5b8def' }}>
+        <Link href={betsHref(searchParams, { page: String(result.page - 1) })} style={pageLink}>
           ← Prev
         </Link>
       ) : (
-        <span style={{ opacity: 0.3 }}>← Prev</span>
+        <span style={pageDisabled}>← Prev</span>
       )}
-      <span style={{ fontSize: 13, opacity: 0.6 }}>
+      <span style={{ fontSize: 'var(--rx-font-size-sm)', color: 'var(--rx-color-text-muted)' }}>
         Page {result.page} of {totalPages}
       </span>
       {result.hasMore ? (
-        <Link href={betsHref(searchParams, { page: String(result.page + 1) })} style={{ color: '#5b8def' }}>
+        <Link href={betsHref(searchParams, { page: String(result.page + 1) })} style={pageLink}>
           Next →
         </Link>
       ) : (
-        <span style={{ opacity: 0.3 }}>Next →</span>
+        <span style={pageDisabled}>Next →</span>
       )}
     </div>
   );

@@ -17,21 +17,37 @@ export function SectionTabs({
   searchParams: RawSearchParams;
 }) {
   return (
-    <nav style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+    <nav
+      aria-label="Marketplace sections"
+      style={{
+        display: 'flex',
+        gap: 'var(--rx-space-2)',
+        marginBottom: 'var(--rx-space-5)',
+        // Single scannable row that scrolls horizontally on narrow screens.
+        overflowX: 'auto',
+        paddingBottom: 'var(--rx-space-1)',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+      }}
+    >
       {marketplace.marketplaceSectionValues.map((section) => {
         const isActive = section === active;
         return (
           <Link
             key={section}
             href={betsHref(searchParams, { section, page: undefined })}
+            aria-current={isActive ? 'page' : undefined}
             style={{
-              padding: '0.45rem 0.9rem',
-              borderRadius: 999,
-              fontSize: 14,
-              fontWeight: 600,
+              flex: '0 0 auto',
+              padding: '0.45rem 0.95rem',
+              borderRadius: 'var(--rx-radius-pill)',
+              fontSize: 'var(--rx-font-size-base)',
+              fontWeight: 'var(--rx-font-weight-semibold)',
               textDecoration: 'none',
-              background: isActive ? '#1f2937' : '#f3f4f6',
-              color: isActive ? '#fff' : '#374151',
+              whiteSpace: 'nowrap',
+              background: isActive ? 'var(--rx-color-primary)' : 'var(--rx-color-surface-2)',
+              color: isActive ? 'var(--rx-color-primary-contrast)' : 'var(--rx-color-text-muted)',
+              border: `1px solid ${isActive ? 'var(--rx-color-primary)' : 'var(--rx-color-border)'}`,
             }}
           >
             {LABELS[section]}

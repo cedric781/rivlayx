@@ -20,10 +20,11 @@ const TIER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
 
 const inputStyle: React.CSSProperties = {
   padding: '0.4rem 0.55rem',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  fontSize: 14,
-  background: '#fff',
+  borderRadius: 'var(--rx-radius-lg)',
+  border: '1px solid var(--rx-color-paper-border)',
+  fontSize: 'var(--rx-font-size-base)',
+  background: 'var(--rx-color-paper)',
+  color: 'var(--rx-color-paper-ink)',
 };
 
 export function MarketplaceFilters() {
@@ -76,24 +77,25 @@ export function MarketplaceFilters() {
       style={{
         display: 'flex',
         flexWrap: 'wrap',
-        gap: '0.6rem',
+        gap: 'var(--rx-space-2)',
         alignItems: 'center',
-        padding: '0.9rem',
-        border: '1px solid #e5e7eb',
-        borderRadius: 12,
-        background: '#fafafa',
-        marginBottom: '1.25rem',
+        padding: 'var(--rx-space-3)',
+        border: '1px solid var(--rx-color-paper-border-muted)',
+        borderRadius: 'var(--rx-radius-xl)',
+        background: 'var(--rx-color-paper)',
+        boxShadow: 'var(--rx-shadow-sm)',
+        marginBottom: 'var(--rx-space-5)',
       }}
     >
       <Input
         label="Search bets"
         hideLabel
         type="search"
-        placeholder="Search bets…"
+        placeholder="Search bets by title…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
         fullWidth={false}
-        containerStyle={{ flex: '1 1 200px' }}
+        containerStyle={{ flex: '1 1 100%' }}
         style={{
           padding: '0.4rem 0.55rem',
           borderColor: 'var(--rx-color-paper-border-strong)',

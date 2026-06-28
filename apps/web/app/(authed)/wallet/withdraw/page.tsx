@@ -46,11 +46,14 @@ export default async function WithdrawPage() {
 
   return (
     <PageContainer size="sm">
-      <Link href="/wallet" style={{ color: '#5b8def', fontSize: 13 }}>
+      <Link
+        href="/wallet"
+        style={{ color: 'var(--rx-color-primary)', fontSize: 'var(--rx-font-size-sm)', textDecoration: 'none', fontWeight: 'var(--rx-font-weight-semibold)' }}
+      >
         ← Back to wallet
       </Link>
-      <h1 style={{ marginBottom: 4 }}>Withdraw USDC</h1>
-      <p style={{ marginTop: 0, opacity: 0.6, fontSize: 14 }}>
+      <h1 style={{ marginBottom: 4, fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Withdraw USDC</h1>
+      <p style={{ marginTop: 0, color: 'var(--rx-color-text-muted)', fontSize: 'var(--rx-font-size-base)', lineHeight: 'var(--rx-line-snug)' }}>
         Request a withdrawal of your available balance. Requests are reviewed and paid out manually
         by an admin during closed alpha.
       </p>
@@ -61,7 +64,7 @@ export default async function WithdrawPage() {
       />
 
       <section style={{ marginTop: '2.5rem' }}>
-        <h2 style={{ fontSize: 16 }}>Your requests</h2>
+        <h2 style={{ fontSize: 'var(--rx-font-size-lg)' }}>Your requests</h2>
         {requests.length === 0 ? (
           <EmptyState
             icon={<IconArrowUpCircle width={32} height={32} />}
@@ -70,9 +73,17 @@ export default async function WithdrawPage() {
           />
         ) : (
           <TableScroll>
-          <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 'var(--rx-font-size-sm)' }}>
             <thead>
-              <tr style={{ textAlign: 'left', opacity: 0.6 }}>
+              <tr
+                style={{
+                  textAlign: 'left',
+                  fontSize: 'var(--rx-font-size-xs)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 'var(--rx-letter-spacing-wide)',
+                  color: 'var(--rx-color-text-muted)',
+                }}
+              >
                 <th style={{ padding: '0.4rem 0' }}>Requested</th>
                 <th>Amount</th>
                 <th>Destination</th>
@@ -81,13 +92,13 @@ export default async function WithdrawPage() {
             </thead>
             <tbody>
               {requests.map((r) => (
-                <tr key={r.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '0.4rem 0' }}>
+                <tr key={r.id} style={{ borderTop: '1px solid var(--rx-color-border)' }}>
+                  <td style={{ padding: '0.5rem 0', color: 'var(--rx-color-text-muted)' }}>
                     {new Date(r.createdAt).toISOString().slice(0, 16).replace('T', ' ')}
                   </td>
-                  <td>{formatUsdc(r.amountUsdc)}</td>
+                  <td style={{ fontWeight: 'var(--rx-font-weight-semibold)' }}>{formatUsdc(r.amountUsdc)}</td>
                   <td>
-                    <code style={{ fontSize: 12 }}>
+                    <code style={{ fontSize: 'var(--rx-font-size-xs)' }}>
                       {r.destinationWallet.slice(0, 6)}…{r.destinationWallet.slice(-6)}
                     </code>
                   </td>
