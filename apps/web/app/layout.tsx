@@ -2,6 +2,7 @@ import './globals.css';
 import type { ReactNode } from 'react';
 import { getEnv } from '@/lib/env';
 import { PrivyProviders } from '@/components/auth/privy-providers';
+import { SiteFooter } from '@/components/site-footer';
 
 export const metadata = {
   title: 'RivlayX',
@@ -25,15 +26,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         background: 'var(--rx-color-bg)',
         color: 'var(--rx-color-text)',
         minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-      {clientAppId ? (
-        <PrivyProviders appId={clientAppId} network={env.SOLANA_NETWORK} solanaRpcUrl={rpcUrl}>
-          {children}
-        </PrivyProviders>
-      ) : (
-        children
-      )}
+      <div style={{ flex: 1 }}>
+        {clientAppId ? (
+          <PrivyProviders appId={clientAppId} network={env.SOLANA_NETWORK} solanaRpcUrl={rpcUrl}>
+            {children}
+          </PrivyProviders>
+        ) : (
+          children
+        )}
+      </div>
+      <SiteFooter />
     </body>
   );
 
