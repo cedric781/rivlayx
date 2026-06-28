@@ -89,6 +89,13 @@ export function CreateBetForm({ availableUsdc, maxStakeUsdc, creationFeeUsdc }: 
       return setError('The resolve date must be after the bet closes for acceptance.');
     }
 
+    const confirmed = window.confirm(
+      `Create this bet and lock ${formatUsdc(totalCost)} in escrow ` +
+        `(${formatUsdc(stake.trim())} stake + ${formatUsdc(creationFeeUsdc)} fee)?\n\n` +
+        `Your funds stay committed until the bet is accepted and resolves.`,
+    );
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/bets', {

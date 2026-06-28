@@ -47,6 +47,12 @@ export function WithdrawForm({ availableUsdc, defaultWallet }: WithdrawFormProps
     });
     if (!check.ok) return setError(check.message);
 
+    const confirmed = window.confirm(
+      `Withdraw ${formatUsdc(amount.trim())} to this Solana address?\n\n${wallet.trim()}\n\n` +
+        `Payouts are manual and cannot be reversed — verify the address is correct.`,
+    );
+    if (!confirmed) return;
+
     setSubmitting(true);
     try {
       const res = await fetch('/api/withdrawals', {

@@ -117,6 +117,7 @@ export default async function WithdrawalsPage({
                         label="Reject"
                         tone="danger"
                         requireReason
+                        confirmMessage={`Reject this ${r.w.amountUsdc} USDC withdrawal to ${r.w.destinationWallet}? This closes the request — the user must submit a new one.`}
                       />
                     </span>
                   ) : (
