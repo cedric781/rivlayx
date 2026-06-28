@@ -7,6 +7,7 @@ import { resolveTypeValues } from '@rivlayx/db/schema';
 import { humanizeCategory, humanizeResolveType } from '@/lib/marketplace/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/toast/toast-provider';
 
 /** Exact creator-tier filter options (Sprint 16). */
 const TIER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
@@ -28,6 +29,7 @@ const inputStyle: React.CSSProperties = {
 export function MarketplaceFilters() {
   const router = useRouter();
   const sp = useSearchParams();
+  const toast = useToast();
 
   const [q, setQ] = useState(sp.get('q') ?? '');
   const [category, setCategory] = useState(sp.get('category') ?? '');
@@ -53,6 +55,9 @@ export function MarketplaceFilters() {
   }
 
   function clear() {
+    const hadFilters = Boolean(
+      q || category || sport || resolveType || tier || minStake || maxStake,
+    );
     setQ('');
     setCategory('');
     setSport('');
@@ -62,6 +67,7 @@ export function MarketplaceFilters() {
     setMaxStake('');
     const section = sp.get('section');
     router.push(section ? `/bets?section=${section}` : '/bets');
+    if (hadFilters) toast.info('Filters cleared');
   }
 
   return (

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { getEnv } from '@/lib/env';
 import { PrivyProviders } from '@/components/auth/privy-providers';
 import { SiteFooter } from '@/components/site-footer';
+import { ToastProvider } from '@/components/toast/toast-provider';
 
 export const metadata = {
   title: 'RivlayX',
@@ -30,15 +31,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         flexDirection: 'column',
       }}
     >
-      <div style={{ flex: 1 }}>
-        {clientAppId ? (
-          <PrivyProviders appId={clientAppId} network={env.SOLANA_NETWORK} solanaRpcUrl={rpcUrl}>
-            {children}
-          </PrivyProviders>
-        ) : (
-          children
-        )}
-      </div>
+      <ToastProvider>
+        <div style={{ flex: 1 }}>
+          {clientAppId ? (
+            <PrivyProviders appId={clientAppId} network={env.SOLANA_NETWORK} solanaRpcUrl={rpcUrl}>
+              {children}
+            </PrivyProviders>
+          ) : (
+            children
+          )}
+        </div>
+      </ToastProvider>
       <SiteFooter />
     </body>
   );
