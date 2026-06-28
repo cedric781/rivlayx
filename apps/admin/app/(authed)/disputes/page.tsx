@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
+import { formatUsdc } from '@rivlayx/shared';
 import { bets, disputes, users } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
@@ -81,7 +82,7 @@ export default async function DisputesPage({
                   </Link>
                 </Td>
                 <Td>{r.opener?.email ?? '—'}</Td>
-                <Td>{r.dispute.depositUsdc}</Td>
+                <Td>{formatUsdc(r.dispute.depositUsdc)}</Td>
                 <Td>
                   <StatusBadge
                     label={r.dispute.status}

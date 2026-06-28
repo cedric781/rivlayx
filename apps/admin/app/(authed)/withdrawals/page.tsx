@@ -1,6 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
 import { can } from '@rivlayx/auth';
+import { formatUsdc } from '@rivlayx/shared';
 import { users, withdrawalRequests } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
@@ -88,7 +89,7 @@ export default async function WithdrawalsPage({
               <tr key={r.w.id}>
                 <Td>{new Date(r.w.createdAt).toISOString().slice(0, 19).replace('T', ' ')}</Td>
                 <Td>{r.email ?? r.w.userId}</Td>
-                <Td>{r.w.amountUsdc} USDC</Td>
+                <Td>{formatUsdc(r.w.amountUsdc)}</Td>
                 <Td>
                   <code style={{ fontSize: 12, wordBreak: 'break-all' }}>
                     {r.w.destinationWallet}
@@ -110,14 +111,14 @@ export default async function WithdrawalsPage({
                       <ActionButton
                         endpoint={`/api/admin/withdrawals/${r.w.id}/approve`}
                         label="Approve"
-                        confirmMessage={`Approve ${r.w.amountUsdc} USDC to ${r.w.destinationWallet}? You must then pay it out manually — nothing is sent automatically.`}
+                        confirmMessage={`Approve ${formatUsdc(r.w.amountUsdc)} to ${r.w.destinationWallet}? You must then pay it out manually — nothing is sent automatically.`}
                       />
                       <ActionButton
                         endpoint={`/api/admin/withdrawals/${r.w.id}/reject`}
                         label="Reject"
                         tone="danger"
                         requireReason
-                        confirmMessage={`Reject this ${r.w.amountUsdc} USDC withdrawal to ${r.w.destinationWallet}? This closes the request — the user must submit a new one.`}
+                        confirmMessage={`Reject this ${formatUsdc(r.w.amountUsdc)} withdrawal to ${r.w.destinationWallet}? This closes the request — the user must submit a new one.`}
                       />
                     </span>
                   ) : (

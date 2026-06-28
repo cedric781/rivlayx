@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
 import { can } from '@rivlayx/auth';
+import { formatUsdc } from '@rivlayx/shared';
 import {
   betAuditLog,
   betEvents,
@@ -99,13 +100,13 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
       <section style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: 18 }}>Participants &amp; escrow</h2>
         <p>
-          Stake per side: {bet.stakePerSideUsdc} USDC · settlement fee {bet.settlementFeeBps} bps
+          Stake per side: {formatUsdc(bet.stakePerSideUsdc)} · settlement fee {bet.settlementFeeBps} bps
         </p>
         <ul>
           {participants.map((row) => (
             <li key={row.p.userId}>
               {row.p.role}: <code>{row.u?.email ?? row.p.userId}</code> · side {row.p.side} · locked{' '}
-              {row.p.stakeLockedUsdc} USDC
+              {formatUsdc(row.p.stakeLockedUsdc)}
             </li>
           ))}
         </ul>
@@ -207,7 +208,7 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
                   {d.id.slice(0, 8)}
                 </Link>{' '}
                 <StatusBadge label={d.status} tone={toneForDisputeStatus(d.status)} /> · deposit{' '}
-                {d.depositUsdc} USDC
+                {formatUsdc(d.depositUsdc)}
               </li>
             ))}
           </ul>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
 import { can } from '@rivlayx/auth';
+import { formatUsdc } from '@rivlayx/shared';
 import { bets, deposits, userRoles, users, wallets } from '@rivlayx/db';
 import { ledger } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
@@ -84,8 +85,8 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
       <section style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: 18 }}>Balance</h2>
         <p>
-          Available: <strong>{balance?.availableUsdc ?? '0.000000'}</strong> USDC — Locked:{' '}
-          <strong>{balance?.lockedUsdc ?? '0.000000'}</strong> USDC
+          Available: <strong>{formatUsdc(balance?.availableUsdc ?? '0')}</strong> — Locked:{' '}
+          <strong>{formatUsdc(balance?.lockedUsdc ?? '0')}</strong>
         </p>
       </section>
 
@@ -107,7 +108,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
         <ul>
           {userDeposits.map((d) => (
             <li key={d.id}>
-              {d.detectedAt.toISOString()} · {d.amountUsdc} USDC ·{' '}
+              {d.detectedAt.toISOString()} · {formatUsdc(d.amountUsdc)} ·{' '}
               <StatusBadge
                 label={d.status}
                 tone={
@@ -129,7 +130,7 @@ export default async function UserDetailPage({ params }: { params: Promise<{ id:
                 {b.shortCode}
               </Link>{' '}
               <StatusBadge label={b.status} tone={toneForBetStatus(b.status)} /> · stake{' '}
-              {b.stakePerSideUsdc}
+              {formatUsdc(b.stakePerSideUsdc)}
             </li>
           ))}
           {activeBets.length === 0 && <li style={{ opacity: 0.6 }}>None.</li>}

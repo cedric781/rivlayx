@@ -1,5 +1,6 @@
 import { desc } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
+import { formatUsdc } from '@rivlayx/shared';
 import { deposits, orphanDeposits, reconciliationRuns } from '@rivlayx/db';
 import { deposits as coreDeposits } from '@rivlayx/core';
 import { getDb } from '@/lib/db';
@@ -37,7 +38,7 @@ export default async function FinancePage() {
     <AdminShell user={user} roles={roles}>
       <h1 style={{ margin: 0 }}>Finance</h1>
       <p style={{ opacity: 0.6, marginTop: '0.25rem' }}>
-        Current TVL: <strong>{tvl} USDC</strong>
+        Current TVL: <strong>{formatUsdc(tvl)}</strong>
       </p>
 
       <section style={{ marginTop: '2rem' }}>
@@ -56,7 +57,7 @@ export default async function FinancePage() {
             {recentDeposits.map((d) => (
               <tr key={d.id}>
                 <Td>{d.detectedAt.toISOString().slice(0, 19).replace('T', ' ')}</Td>
-                <Td>{d.amountUsdc}</Td>
+                <Td>{formatUsdc(d.amountUsdc)}</Td>
                 <Td>
                   <code style={{ fontSize: 11 }}>{d.userId.slice(0, 8)}</code>
                 </Td>
@@ -90,7 +91,7 @@ export default async function FinancePage() {
             {orphans.map((o) => (
               <tr key={o.id}>
                 <Td>{o.detectedAt.toISOString().slice(0, 19).replace('T', ' ')}</Td>
-                <Td>{o.amountUsdc}</Td>
+                <Td>{formatUsdc(o.amountUsdc)}</Td>
                 <Td style={{ fontSize: 11 }}>{o.sourceWallet.slice(0, 12)}…</Td>
                 <Td>
                   <StatusBadge

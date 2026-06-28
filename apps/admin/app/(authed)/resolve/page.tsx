@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
+import { formatUsdc } from '@rivlayx/shared';
 import { bets, type BetStatus } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
@@ -77,7 +78,7 @@ export default async function ResolveQueuePage() {
                   </Link>
                 </Td>
                 <Td>{r.title}</Td>
-                <Td>{r.stakePerSideUsdc}</Td>
+                <Td>{formatUsdc(r.stakePerSideUsdc)}</Td>
                 <Td>
                   <StatusBadge label={r.status} tone={toneForBetStatus(r.status)} />
                 </Td>

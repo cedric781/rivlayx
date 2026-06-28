@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
+import { formatUsdc } from '@rivlayx/shared';
 import { bets, type BetStatus } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
@@ -64,7 +65,7 @@ export default async function BetsListPage({
                 <StatusBadge label={b.status} tone={toneForBetStatus(b.status)} />
               </Td>
               <Td>{b.betType}</Td>
-              <Td>{b.stakePerSideUsdc}</Td>
+              <Td>{formatUsdc(b.stakePerSideUsdc)}</Td>
               <Td>{b.resolveType}</Td>
               <Td>
                 <Link href={`/bets/${b.id}`} style={{ color: '#5b8def', fontSize: 13 }}>

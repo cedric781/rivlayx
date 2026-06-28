@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { desc, eq, ne } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
+import { formatUsdc } from '@rivlayx/shared';
 import { bets, payouts, payoutAttempts } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
@@ -183,7 +184,7 @@ function PayoutTable({
                 '—'
               )}
             </Td>
-            <Td>{row.p.amountUsdc} USDC</Td>
+            <Td>{formatUsdc(row.p.amountUsdc)}</Td>
             <Td>
               <StatusBadge
                 label={row.p.status}
