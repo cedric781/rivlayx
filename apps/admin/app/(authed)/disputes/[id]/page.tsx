@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { eq } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
 import { can } from '@rivlayx/auth';
+import { formatUsdc } from '@rivlayx/shared';
 import { bets, betParticipants, disputes, users } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
@@ -75,7 +76,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
           <StatusBadge label={row.bet.status} tone={toneForBetStatus(row.bet.status)} />
         </p>
         <p>Title: {row.bet.title}</p>
-        <p>Stake/side: {row.bet.stakePerSideUsdc} USDC</p>
+        <p>Stake/side: {formatUsdc(row.bet.stakePerSideUsdc)}</p>
         <p>
           Proposed winner: <code>{row.bet.proposedWinnerUserId ?? '—'}</code>
         </p>
@@ -87,7 +88,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
           {participants.map((p) => (
             <li key={p.p.userId}>
               {p.p.role}: <code>{p.u?.email ?? p.p.userId}</code> · side <strong>{p.p.side}</strong>{' '}
-              · stake {p.p.stakeLockedUsdc} USDC
+              · stake {formatUsdc(p.p.stakeLockedUsdc)}
             </li>
           ))}
         </ul>
@@ -100,7 +101,7 @@ export default async function DisputeDetailPage({ params }: { params: Promise<{ 
           Claimed winner: <code>{row.dispute.claimedWinnerUserId}</code>
         </p>
         <p>
-          Deposit: <strong>{row.dispute.depositUsdc} USDC</strong>
+          Deposit: <strong>{formatUsdc(row.dispute.depositUsdc)}</strong>
         </p>
         <p style={{ whiteSpace: 'pre-wrap' }}>
           <strong>Reason:</strong>

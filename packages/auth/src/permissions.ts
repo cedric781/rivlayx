@@ -33,6 +33,7 @@ export const ADMIN_PERMISSIONS = {
   viewLedger: (roles: readonly RoleName[]) => hasMinRole(roles, 'admin'),
   viewDeposits: (roles: readonly RoleName[]) => hasMinRole(roles, 'admin'),
   viewReconciliation: (roles: readonly RoleName[]) => hasMinRole(roles, 'admin'),
+  approveWithdrawal: (roles: readonly RoleName[]) => hasMinRole(roles, 'admin'),
 
   // Freeze controls
   freezeComponent: (roles: readonly RoleName[]) => hasMinRole(roles, 'admin'),
@@ -68,6 +69,7 @@ export const MFA_REQUIRED_ACTIONS: ReadonlySet<AdminPermission> = new Set<AdminP
   'freezeComponent',
   'emergencyFreezeAll',
   'manageRoles',
+  'approveWithdrawal',
 ]);
 
 export function requiresMfaForAction(permission: AdminPermission): boolean {

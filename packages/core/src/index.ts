@@ -8,5 +8,7 @@ export * as risk from './risk';
 export * as ops from './ops';
 export * as admin from './admin';
 export * as payouts from './payouts';
+export * as escrow from './escrow';
+export * as withdrawals from './withdrawals';
 export * as cron from './cron';
 export const VERSION = '0.0.5';

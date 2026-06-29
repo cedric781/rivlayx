@@ -11,7 +11,9 @@
     "./deposits": "./src/deposits/index.ts",
     "./bets": "./src/bets/index.ts",
     "./marketplace": "./src/marketplace/index.ts",
-    "./admin": "./src/admin/index.ts"
+    "./marketplace/types": "./src/marketplace/types.ts",
+    "./admin": "./src/admin/index.ts",
+    "./withdrawals/cap": "./src/withdrawals/cap.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -24,6 +26,9 @@
     "@rivlayx/helius": "workspace:*",
     "@rivlayx/providers": "workspace:*",
     "@rivlayx/shared": "workspace:*",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "bs58": "^6.0.0",
     "decimal.js": "^10.4.3",
     "drizzle-orm": "^0.36.4",
     "zod": "^3.23.8"

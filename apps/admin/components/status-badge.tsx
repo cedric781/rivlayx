@@ -1,9 +1,9 @@
 const TONES: Record<string, { bg: string; fg: string }> = {
-  green: { bg: '#103a1f', fg: '#5fd47a' },
-  red: { bg: '#3a0d0d', fg: '#ff6b6b' },
-  yellow: { bg: '#3a2c0a', fg: '#f0c674' },
-  blue: { bg: '#0d2a3f', fg: '#5b8def' },
-  gray: { bg: '#1a1d21', fg: '#9fa6ad' },
+  green: { bg: 'var(--rx-color-success-surface)', fg: 'var(--rx-color-success-fg)' },
+  red: { bg: 'var(--rx-color-danger-surface)', fg: 'var(--rx-color-danger-fg)' },
+  yellow: { bg: 'var(--rx-color-warning-surface)', fg: 'var(--rx-color-warning-fg)' },
+  blue: { bg: 'var(--rx-color-info-surface)', fg: 'var(--rx-color-info-fg)' },
+  gray: { bg: 'var(--rx-color-muted-surface)', fg: 'var(--rx-color-text-muted)' },
 };
 
 export function StatusBadge({

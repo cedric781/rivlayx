@@ -104,4 +104,19 @@ describe('reconcileVault', () => {
     const rows = await harness.db.select().from(reconciliationRuns);
     expect(rows).toHaveLength(1);
   });
+
+  it('halts on internal ledger inconsistency even with the on-chain leg present', async () => {
+    // The internal consistency check (Σdebit == Σcredit) runs first and escalates
+    // to halt before the on-chain comparison — so wiring the vault leg never
+    // weakens internal-only reconciliation. Insert a lone unbalanced debit.
+    setVaultBalance('0');
+    await harness.pg.exec(`
+      INSERT INTO financial.ledger_entries
+        (txn_id, entry_index, account_type, account_ref, direction, amount_usdc, reason, request_id, created_by)
+      VALUES (gen_random_uuid(), 0, 'deposit_holding', 'vault', 'debit', '10', 'deposit', gen_random_uuid(), 'recon-test');
+    `);
+
+    const result = await reconcileVault(harness.db, { vaultAta: VAULT_ATA, rpc });
+    expect(result.status).toBe('halt');
+  });
 });

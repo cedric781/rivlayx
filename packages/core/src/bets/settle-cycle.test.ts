@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { bets } from '@rivlayx/db';
+import { bets, ledgerEntries } from '@rivlayx/db';
 import { createTestDb, createTestUser, type TestDb } from '@rivlayx/test-utils';
 import { createBetAwaitingResult, fundUser, linkTestWallet } from './test-helpers';
 import { proposeResult, closeDisputeWindow } from './resolve';
+import { setFreeze } from '../ledger/freeze';
 import { runSettlementCycle } from './settle-cycle';
 
 let harness: TestDb;
@@ -17,7 +18,9 @@ afterAll(async () => {
 beforeEach(async () => {
   await harness.pg.exec(
     'TRUNCATE auth.users CASCADE; TRUNCATE financial.ledger_entries; TRUNCATE financial.balances; ' +
-      'TRUNCATE app.bets CASCADE;',
+      'TRUNCATE app.bets CASCADE; ' +
+      'TRUNCATE financial.freeze_state CASCADE; ' +
+      "INSERT INTO financial.freeze_state (component) VALUES ('new_bets'), ('settlements'), ('withdrawals'), ('all');",
   );
 });
 
@@ -87,5 +90,58 @@ describe('runSettlementCycle', () => {
     // Bet is now SETTLED, no longer RESOLVED → not picked up again.
     const second = await runSettlementCycle(harness.db);
     expect(second.settled).toEqual([]);
+  });
+});
+
+describe('runSettlementCycle — freeze kill-switch', () => {
+  async function ledgerCount(): Promise<number> {
+    const [r] = await harness.db.select({ n: sql<number>`count(*)::int` }).from(ledgerEntries);
+    return Number(r!.n);
+  }
+
+  it('settlements freeze hard-skips the cycle — no settle, no ledger writes', async () => {
+    const { creator, acceptor } = await pair();
+    const betId = await resolvedBet(creator.id, acceptor.id);
+    await setFreeze(harness.db, 'settlements', true, { actorUserId: null, reason: 'test' });
+
+    const before = await ledgerCount();
+    const result = await runSettlementCycle(harness.db);
+
+    expect(result.skipped).toBe('frozen');
+    expect(result.settled).toEqual([]);
+    expect(result.alreadySettled).toEqual([]);
+    expect(await ledgerCount()).toBe(before); // not one ledger entry posted while frozen
+    const [bet] = await harness.db.select().from(bets).where(eq(bets.id, betId));
+    expect(bet!.status).toBe('RESOLVED'); // never advanced to SETTLED
+  });
+
+  it('global `all` freeze also hard-skips the cycle', async () => {
+    const { creator, acceptor } = await pair();
+    const betId = await resolvedBet(creator.id, acceptor.id);
+    await setFreeze(harness.db, 'all', true, { actorUserId: null, reason: 'test' });
+
+    const before = await ledgerCount();
+    const result = await runSettlementCycle(harness.db);
+
+    expect(result.skipped).toBe('frozen');
+    expect(result.settled).toEqual([]);
+    expect(await ledgerCount()).toBe(before);
+    const [bet] = await harness.db.select().from(bets).where(eq(bets.id, betId));
+    expect(bet!.status).toBe('RESOLVED');
+  });
+
+  it('settles normally once the freeze is lifted — unfrozen behaviour unchanged', async () => {
+    const { creator, acceptor } = await pair();
+    const betId = await resolvedBet(creator.id, acceptor.id);
+
+    await setFreeze(harness.db, 'settlements', true, { actorUserId: null, reason: 'test' });
+    expect((await runSettlementCycle(harness.db)).skipped).toBe('frozen');
+
+    await setFreeze(harness.db, 'settlements', false, { actorUserId: null, reason: 'cleared' });
+    const result = await runSettlementCycle(harness.db);
+    expect(result.skipped).toBeUndefined();
+    expect(result.settled).toEqual([betId]);
+    const [bet] = await harness.db.select().from(bets).where(eq(bets.id, betId));
+    expect(bet!.status).toBe('SETTLED');
   });
 });

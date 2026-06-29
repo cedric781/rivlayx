@@ -3,6 +3,8 @@ import { profiles } from '@rivlayx/core';
 import { formatDateTime, formatUsdc, humanizeResolveType } from '@/lib/marketplace/format';
 import { StatusBadge } from '@/components/marketplace/status-badge';
 import { buildProfileHref, type ParsedProfileParams } from '@/lib/profile/params';
+import { EmptyState } from '@/components/ui/empty-state';
+import { IconInbox } from '@/components/ui/icons';
 
 const FILTER_LABELS: Record<profiles.ProfileBetFilter, string> = {
   open: 'Open',
@@ -97,7 +99,11 @@ export function BetHistory({
 
       {/* List */}
       {result.items.length === 0 ? (
-        <p style={{ opacity: 0.6 }}>No bets in this view.</p>
+        <EmptyState
+          icon={<IconInbox width={32} height={32} />}
+          title="No bets in this view"
+          hint="Try a different filter — bets in other states may still be here."
+        />
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {result.items.map((b) => {

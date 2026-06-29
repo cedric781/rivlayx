@@ -262,6 +262,131 @@ export const orphanDeposits = financialSchema.table(
   }),
 );
 
+// ───────────── withdrawal_requests (Sprint 30) ─────────────
+
+export const withdrawalRequestStatusValues = [
+  'pending_review',
+  'approved',
+  'processing',
+  'paid',
+  'failed',
+  'rejected',
+  'cancelled',
+] as const;
+export type WithdrawalRequestStatus = (typeof withdrawalRequestStatusValues)[number];
+
+/**
+ * User-initiated USDC withdrawal requests.
+ *
+ *   Sprint 30: request intake → `pending_review`; admin reviews manually.
+ *   Sprint 31: admin `approve` → `approved`, then the withdrawal runner drives
+ *     `approved → processing → paid` automatically (on-chain transfer + ledger
+ *     debit user_available / credit deposit_holding). Idempotent on the row id;
+ *     retryable failures back off, permanent failures land in `failed`.
+ *
+ * The execution columns below mirror the payouts table so the runner can reuse
+ * the same transfer providers, backoff, and idempotency patterns.
+ */
+export const withdrawalRequests = financialSchema.table(
+  'withdrawal_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    amountUsdc: numeric('amount_usdc', { precision: 20, scale: 6 }).notNull(),
+    destinationWallet: varchar('destination_wallet', { length: 64 }).notNull(),
+    status: varchar('status', { length: 16, enum: withdrawalRequestStatusValues })
+      .notNull()
+      .default('pending_review'),
+    /** Available balance snapshot at request time — audit aid, NOT a hold. */
+    availableAtRequestUsdc: numeric('available_at_request_usdc', {
+      precision: 20,
+      scale: 6,
+    }).notNull(),
+    reviewedByUserId: uuid('reviewed_by_user_id').references(() => users.id),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewNotes: text('review_notes'),
+    // ── Sprint 31 automated-execution columns (mirror payouts) ──
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    lastError: text('last_error'),
+    txSignature: varchar('tx_signature', { length: 128 }),
+    ledgerTxnId: uuid('ledger_txn_id'),
+    processingAt: timestamp('processing_at', { withTimezone: true }),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('withdrawal_requests_user_idx').on(t.userId, t.createdAt),
+    statusIdx: index('withdrawal_requests_status_idx').on(t.status, t.nextAttemptAt),
+    amountPositive: check('withdrawal_requests_amount_positive', sql`${t.amountUsdc} > 0`),
+  }),
+);
+
+// ───────────── on-chain transfers (Privy migration, Phase 3) ─────────────
+
+export const onchainTransferTypeValues = ['stake', 'settlement_payout', 'withdrawal'] as const;
+export type OnchainTransferType = (typeof onchainTransferTypeValues)[number];
+
+export const onchainTransferStatusValues = ['pending', 'submitted', 'finalized', 'failed'] as const;
+export type OnchainTransferStatus = (typeof onchainTransferStatusValues)[number];
+
+/**
+ * Audit record of every on-chain USDC transfer the Privy money paths move:
+ * user→escrow (stake), escrow→winner (settlement_payout), user→external
+ * (withdrawal). Lifecycle: pending → submitted → finalized | failed.
+ *
+ * `idempotency_key` (UNIQUE) is the logical-transfer identity (e.g.
+ * `stake:{betId}:{userId}`) — re-creating is a no-op. `tx_signature` (UNIQUE,
+ * nullable until submitted) dedups the on-chain side. Phase 3 ships the table +
+ * record helpers only; no live money flow writes to it yet.
+ */
+export const onchainTransfers = financialSchema.table(
+  'onchain_transfers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: varchar('type', { length: 24, enum: onchainTransferTypeValues }).notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    /** Bet this transfer relates to (stake/settlement). NULL for withdrawals. */
+    betId: uuid('bet_id'),
+    sourceWallet: varchar('source_wallet', { length: 64 }).notNull(),
+    destinationWallet: varchar('destination_wallet', { length: 64 }).notNull(),
+    amountUsdc: numeric('amount_usdc', { precision: 20, scale: 6 }).notNull(),
+    mint: varchar('mint', { length: 64 }).notNull(),
+    /** CAIP-2 Solana chain id the transfer is broadcast on. */
+    caip2: varchar('caip2', { length: 48 }),
+    /** Solana signature — set at submit time. Unique (Postgres allows many NULLs). */
+    txSignature: varchar('tx_signature', { length: 128 }).unique(),
+    /** Logical-transfer idempotency key, e.g. `stake:{betId}:{userId}`. */
+    idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull().unique(),
+    status: varchar('status', { length: 16, enum: onchainTransferStatusValues })
+      .notNull()
+      .default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    lastError: text('last_error'),
+    /** Ledger txn posted when the transfer finalizes. */
+    ledgerTxnId: uuid('ledger_txn_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    finalizedAt: timestamp('finalized_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+  },
+  (t) => ({
+    statusIdx: index('onchain_transfers_status_idx').on(t.status, t.nextAttemptAt),
+    betIdx: index('onchain_transfers_bet_idx').on(t.betId),
+    userIdx: index('onchain_transfers_user_idx').on(t.userId, t.createdAt),
+    amountPositive: check('onchain_transfers_amount_positive', sql`${t.amountUsdc} > 0`),
+  }),
+);
+
 // ───────────── inferred types ─────────────
 
 export type LedgerEntry = typeof ledgerEntries.$inferSelect;
@@ -274,3 +399,7 @@ export type Deposit = typeof deposits.$inferSelect;
 export type NewDeposit = typeof deposits.$inferInsert;
 export type OrphanDeposit = typeof orphanDeposits.$inferSelect;
 export type NewOrphanDeposit = typeof orphanDeposits.$inferInsert;
+export type WithdrawalRequest = typeof withdrawalRequests.$inferSelect;
+export type NewWithdrawalRequest = typeof withdrawalRequests.$inferInsert;
+export type OnchainTransfer = typeof onchainTransfers.$inferSelect;
+export type NewOnchainTransfer = typeof onchainTransfers.$inferInsert;

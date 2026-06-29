@@ -1,6 +1,9 @@
+import './globals.css';
 import type { ReactNode } from 'react';
 import { getEnv } from '@/lib/env';
 import { PrivyProviders } from '@/components/auth/privy-providers';
+import { SiteFooter } from '@/components/site-footer';
+import { ToastProvider } from '@/components/toast/toast-provider';
 
 export const metadata = {
   title: 'RivlayX',
@@ -19,20 +22,27 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   const body = (
     <body
       style={{
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: 'var(--rx-font-sans)',
         margin: 0,
-        background: '#0b0d10',
-        color: '#e6e8eb',
+        background: 'var(--rx-color-bg)',
+        color: 'var(--rx-color-text)',
         minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-      {clientAppId ? (
-        <PrivyProviders appId={clientAppId} network={env.SOLANA_NETWORK} solanaRpcUrl={rpcUrl}>
-          {children}
-        </PrivyProviders>
-      ) : (
-        children
-      )}
+      <ToastProvider>
+        <div style={{ flex: 1 }}>
+          {clientAppId ? (
+            <PrivyProviders appId={clientAppId} network={env.SOLANA_NETWORK} solanaRpcUrl={rpcUrl}>
+              {children}
+            </PrivyProviders>
+          ) : (
+            children
+          )}
+        </div>
+      </ToastProvider>
+      <SiteFooter />
     </body>
   );
 

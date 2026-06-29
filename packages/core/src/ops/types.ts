@@ -14,6 +14,25 @@ export interface CronHealth {
   failing: boolean;
 }
 
+/** Aggregate count + sample for one stuck/failed transfer condition. */
+export interface TransferConditionHealth {
+  count: number;
+  /** Age of the oldest matching transfer in minutes (null when count is 0). */
+  oldestMinutes: number | null;
+  /** Up to `transfers.sampleLimit` row ids, for the alert evidence. */
+  sampleIds: string[];
+}
+
+/** Money-transfer health: failed/stuck withdrawals + stuck on-chain transfers. */
+export interface TransferHealth {
+  /** Withdrawals in terminal `failed` within the recent-failure window. */
+  failedWithdrawals: TransferConditionHealth;
+  /** `onchain_transfers` left `submitted` past the stuck threshold. */
+  stuckOnchain: TransferConditionHealth;
+  /** Withdrawals left `processing` past the stuck threshold (no reaper yet). */
+  stuckWithdrawals: TransferConditionHealth;
+}
+
 /** Point-in-time snapshot of the signals the evaluator scores. Pure input. */
 export interface OpsSnapshot {
   crons: CronHealth[];
@@ -24,6 +43,7 @@ export interface OpsSnapshot {
   };
   tvlUsdc: number;
   frozenComponents: string[];
+  transfers: TransferHealth;
 }
 
 /** A would-be alert produced by the pure evaluator. */

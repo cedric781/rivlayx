@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { and, desc, eq, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
+import { formatUsdc } from '@rivlayx/shared';
 import { autoResolveAttempts, bets } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { AdminShell } from '@/components/admin-shell';
@@ -88,7 +89,7 @@ export default async function AutoResolvePage() {
                 <Td>
                   <StatusBadge label={b.status} tone={toneForBetStatus(b.status)} />
                 </Td>
-                <Td>{b.stakePerSideUsdc}</Td>
+                <Td>{formatUsdc(b.stakePerSideUsdc)}</Td>
                 <Td style={{ fontSize: 12 }}>
                   {(b.resolveSource as { provider?: string } | null)?.provider ?? '—'}
                 </Td>

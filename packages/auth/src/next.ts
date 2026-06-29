@@ -11,7 +11,7 @@ import {
   type User,
 } from '@rivlayx/db';
 import { COOKIE_NAMES } from './cookies';
-import { defaultLimits, isIdleExpired, loadActiveSession, touchSession } from './session';
+import { defaultLimits, isIdleExpired, isMfaFresh, loadActiveSession, touchSession } from './session';
 import { hasMinRole, requiresMfa } from './roles';
 
 export interface AuthContext {
@@ -25,6 +25,11 @@ export interface SessionGateOptions {
   minRole?: RoleName;
   /** When undefined: auto — admin app requires MFA for admin/super_admin roles. */
   requireMfa?: boolean;
+  /**
+   * C5 — when set, MFA must have been verified within this many ms (freshness).
+   * When omitted, any prior verification suffices (used by the /mfa flow itself).
+   */
+  mfaMaxAgeMs?: number;
   loginPath?: string;
   mfaPath?: string;
   forbiddenPath?: string;
@@ -76,8 +81,14 @@ export async function requireSession(
   }
 
   const mfaNeeded = opts.requireMfa ?? (opts.app === 'admin' && requiresMfa(roles));
-  if (mfaNeeded && !session.mfaVerifiedAt) {
-    redirect(mfaPath);
+  if (mfaNeeded) {
+    const mfaOk =
+      opts.mfaMaxAgeMs != null
+        ? isMfaFresh(session, opts.mfaMaxAgeMs)
+        : session.mfaVerifiedAt != null;
+    if (!mfaOk) {
+      redirect(mfaPath);
+    }
   }
 
   // Fire-and-forget last_activity update; don't block render.

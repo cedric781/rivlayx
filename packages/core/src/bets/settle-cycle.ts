@@ -1,5 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { bets } from '@rivlayx/db';
+import { isFrozen } from '../ledger/freeze';
 import { BetError } from './errors';
 import { settleBet } from './settle';
 import type { BetDb } from './types';
@@ -16,6 +17,12 @@ export interface SettlementCycleResult {
   alreadySettled: string[];
   /** Per-bet failures; collected, never abort the batch. */
   errors: Array<{ betId: string; code: string; message: string }>;
+  /**
+   * Set to `'frozen'` when the whole cycle was hard-skipped by the kill-switch
+   * (the `settlements` component, or the global `all` freeze). Absent on a normal
+   * run, so unfrozen behaviour is unchanged.
+   */
+  skipped?: 'frozen';
 }
 
 /**
@@ -33,6 +40,15 @@ export async function runSettlementCycle(
   db: BetDb,
   options: SettlementCycleOptions = {},
 ): Promise<SettlementCycleResult> {
+  // Kill-switch: a `settlements` (or global `all`) freeze hard-skips the entire
+  // cycle BEFORE any bet is selected or `settleBet` is called — so no bet is
+  // advanced and no ledger entry is posted while settlement is frozen. One check
+  // covers both components: `isFrozen('settlements')` returns true when `all` is
+  // frozen. Mirrors the withdrawals runner's top-level freeze guard.
+  if (await isFrozen(db, 'settlements')) {
+    return { settled: [], alreadySettled: [], errors: [], skipped: 'frozen' };
+  }
+
   const limit = options.limit ?? 100;
   const rows = await db
     .select({ id: bets.id })

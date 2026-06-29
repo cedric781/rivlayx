@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { userRoles, users, type RoleName } from '@rivlayx/db';
+import { hashPassword } from '@rivlayx/shared/password';
 
 export interface TestUser {
   id: string;
@@ -17,7 +18,7 @@ type AnyDb = any;
  */
 export async function createTestUser(
   db: AnyDb,
-  opts: { email?: string; username?: string; roles?: RoleName[] } = {},
+  opts: { email?: string; username?: string; roles?: RoleName[]; password?: string } = {},
 ): Promise<TestUser> {
   const id = randomUUID();
   const email = opts.email ?? `${id}@test.local`;
@@ -30,6 +31,7 @@ export async function createTestUser(
     username,
     privyId,
     status: 'active',
+    passwordHash: opts.password ? hashPassword(opts.password) : null,
   });
   const roles = opts.roles ?? ['user'];
   await db.insert(userRoles).values(roles.map((role) => ({ userId: id, role })));

@@ -21,6 +21,8 @@ export interface PrivyLinkedAccount {
   address?: string;
   chainType?: string;
   walletClientType?: string;
+  /** True when this embedded wallet has Privy delegated-signing granted. */
+  delegated?: boolean;
 }
 
 export interface CreatePrivyAuthProviderConfig {
@@ -61,6 +63,7 @@ class PrivyAuthProviderImpl implements AuthProvider {
       email,
       walletAddress: solanaWallet.address,
       walletSource: 'privy_embedded',
+      delegated: solanaWallet.delegated ?? false,
     };
   }
 }

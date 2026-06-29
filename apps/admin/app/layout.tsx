@@ -1,3 +1,4 @@
+import './globals.css';
 import type { ReactNode } from 'react';
 
 export const metadata = {
@@ -10,17 +11,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body
         style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: 'var(--rx-font-sans)',
           margin: 0,
-          background: '#0b0d10',
-          color: '#e6e8eb',
+          background: 'var(--rx-color-bg)',
+          color: 'var(--rx-color-text)',
           minHeight: '100vh',
         }}
       >
         <div
           style={{
-            background: '#5c1a1a',
-            color: 'white',
+            background: 'var(--rx-color-admin-banner)',
+            color: 'var(--rx-color-primary-contrast)',
             padding: '0.4rem 1rem',
             fontSize: 12,
             fontWeight: 600,

@@ -20,6 +20,7 @@
     "@rivlayx/helius": "workspace:*",
     "@rivlayx/providers": "workspace:*",
     "@rivlayx/shared": "workspace:*",
+    "@solana/spl-token": "^0.4.9",
     "drizzle-orm": "^0.36.4",
     "next": "^15.1.0",
     "react": "^19.0.0",

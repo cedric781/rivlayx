@@ -1,5 +1,6 @@
 import { count, eq, sql } from 'drizzle-orm';
 import { requireSession } from '@rivlayx/auth/next';
+import { formatUsdc } from '@rivlayx/shared';
 import {
   bets,
   deposits,
@@ -108,7 +109,7 @@ export default async function AdminDashboardPage() {
       <section style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: 18 }}>TVL monitor</h2>
         <p>
-          Current TVL: <strong>{currentTvl} USDC</strong>
+          Current TVL: <strong>{formatUsdc(currentTvl)}</strong>
         </p>
       </section>
 

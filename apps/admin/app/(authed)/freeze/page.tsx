@@ -75,7 +75,7 @@ export default async function FreezePage() {
                         body={{ component: r.component, frozen: true }}
                         confirmMessage={
                           r.component === 'all'
-                            ? 'Emergency-freeze everything? This stops new bets, deposits, settlements, and withdrawals immediately.'
+                            ? 'Emergency-freeze everything? This stops new bets, settlements, and withdrawals immediately.'
                             : `Freeze ${r.component}? Operations relying on it will start rejecting.`
                         }
                       />

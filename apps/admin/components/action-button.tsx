@@ -1,6 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Button } from './ui/button';
 
 export interface ActionButtonProps {
   endpoint: string;
@@ -56,27 +57,18 @@ export function ActionButton({
     }
   }
 
-  const bg = tone === 'danger' ? '#a13a3a' : '#5b8def';
   return (
     <form onSubmit={onSubmit} style={{ display: 'inline-block', marginRight: 8 }}>
-      <button
+      <Button
         type="submit"
+        variant={tone === 'danger' ? 'danger' : 'primary'}
+        size="sm"
         disabled={busy}
-        style={{
-          padding: '0.4rem 0.9rem',
-          background: busy ? '#2c3036' : bg,
-          color: 'white',
-          border: 'none',
-          borderRadius: 4,
-          cursor: busy ? 'not-allowed' : 'pointer',
-          fontSize: 13,
-          fontWeight: 600,
-        }}
       >
         {busy ? 'Working…' : label}
-      </button>
+      </Button>
       {error && (
-        <p role="alert" style={{ color: '#ff6b6b', margin: '0.25rem 0 0', fontSize: 12 }}>
+        <p role="alert" style={{ color: 'var(--rx-color-danger-fg)', margin: '0.25rem 0 0', fontSize: 12 }}>
           {error}
         </p>
       )}

@@ -4,6 +4,7 @@ import type { ParsedProfileParams } from '@/lib/profile/params';
 import { ReputationBadge } from '@/components/reputation/reputation-badge';
 import { ProfileStats } from './profile-stats';
 import { BetHistory } from './bet-history';
+import { PageContainer } from '@/components/ui/page-container';
 
 /**
  * Shared profile renderer for `/profile` (self) and `/profile/[username]`
@@ -28,10 +29,10 @@ export function ProfileView({
   isOwn: boolean;
 }) {
   return (
-    <main style={{ maxWidth: 860, margin: '2rem auto', padding: '0 1rem' }}>
+    <PageContainer size="lg">
       <header style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <h1 style={{ margin: '0 0 0.2rem', fontSize: 26 }}>
+          <h1 style={{ margin: '0 0 0.2rem', fontSize: 'clamp(1.5rem, 4vw, 1.75rem)' }}>
             {user.displayName ?? `@${user.username}`}
           </h1>
           <ReputationBadge tier={rep.tier} provisional={rep.provisional} />
@@ -58,6 +59,6 @@ export function ProfileView({
 
       <ProfileStats stats={stats} />
       <BetHistory basePath={basePath} params={params} result={bets} />
-    </main>
+    </PageContainer>
   );
 }

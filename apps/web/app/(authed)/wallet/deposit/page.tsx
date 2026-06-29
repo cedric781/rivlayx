@@ -5,6 +5,7 @@ import { getDb } from '@/lib/db';
 import { getEnv } from '@/lib/env';
 import { DepositInstructions } from '@/components/wallet/deposit-instructions';
 import { DevnetWarning } from '@/components/wallet/devnet-warning';
+import { PageContainer } from '@/components/ui/page-container';
 
 export const metadata = { title: 'Deposit USDC — RivlayX' };
 
@@ -14,14 +15,14 @@ export default async function DepositPage() {
   const currentTvl = await coreDeposits.computeCurrentTvl(getDb());
 
   return (
-    <main style={{ maxWidth: 720, margin: '2rem auto', padding: '0 1rem' }}>
+    <PageContainer size="md">
       <div style={{ marginBottom: '1rem' }}>
         <Link href="/wallet" style={{ color: '#5b8def', fontSize: 13 }}>
           ← Back to wallet
         </Link>
       </div>
 
-      <h1>Deposit USDC</h1>
+      <h1 style={{ fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Deposit USDC</h1>
       <DevnetWarning network={env.SOLANA_NETWORK} />
 
       {env.PLATFORM_VAULT_ATA ? (
@@ -49,6 +50,6 @@ export default async function DepositPage() {
           enable deposits.
         </div>
       )}
-    </main>
+    </PageContainer>
   );
 }

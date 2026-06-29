@@ -80,3 +80,13 @@ export async function markMfaVerified(db: AuthDb, id: string): Promise<void> {
 export function isIdleExpired(session: Session, limits: SessionLimits): boolean {
   return session.lastActivityAt.getTime() + limits.idleMs <= Date.now();
 }
+
+/**
+ * C5 — MFA freshness. A session's MFA is "fresh" only when it was verified
+ * within `maxAgeMs`. Money approvals require fresh MFA, so a one-time
+ * verification cannot stay valid for the whole session lifetime.
+ */
+export function isMfaFresh(session: Session, maxAgeMs: number, now: Date = new Date()): boolean {
+  if (!session.mfaVerifiedAt) return false;
+  return session.mfaVerifiedAt.getTime() + maxAgeMs > now.getTime();
+}

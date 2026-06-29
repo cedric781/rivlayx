@@ -82,7 +82,8 @@ describe('confirmDeposit', () => {
     expect(row?.confirmedAt).not.toBeNull();
   });
 
-  it('transitions to confirmed when confirmations ≥ required', async () => {
+  it('C6A: stays pending at commitment=confirmed even with a high confirmation count', async () => {
+    // Pre-finalized 'confirmed' is rollback-able; only 'finalized' may credit.
     const { depositId, signature } = await setupPendingDeposit();
     rpc.setSignatureStatus(signature, {
       signature,
@@ -92,10 +93,29 @@ describe('confirmDeposit', () => {
       err: null,
     });
     const result = await confirmDeposit(harness.db, rpc, depositId);
-    expect(result.kind).toBe('confirmed');
+    expect(result.kind).toBe('still_pending');
+
+    const [row] = await harness.db.select().from(deposits).where(eq(deposits.id, depositId));
+    expect(row?.status).toBe('pending');
   });
 
-  it('stays pending and updates count when confirmations < required', async () => {
+  it('stays pending at commitment=processed', async () => {
+    const { depositId, signature } = await setupPendingDeposit();
+    rpc.setSignatureStatus(signature, {
+      signature,
+      confirmationStatus: 'processed',
+      confirmations: 1,
+      slot: 12345,
+      err: null,
+    });
+    const result = await confirmDeposit(harness.db, rpc, depositId);
+    expect(result.kind).toBe('still_pending');
+
+    const [row] = await harness.db.select().from(deposits).where(eq(deposits.id, depositId));
+    expect(row?.status).toBe('pending');
+  });
+
+  it('stays pending and updates count when confirmed (sub-finalized)', async () => {
     const { depositId, signature } = await setupPendingDeposit();
     rpc.setSignatureStatus(signature, {
       signature,

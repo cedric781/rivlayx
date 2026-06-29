@@ -158,6 +158,8 @@ export {
   reconciliationRuns,
   deposits,
   orphanDeposits,
+  withdrawalRequests,
+  onchainTransfers,
   accountTypeValues,
   directionValues,
   ledgerReasonValues,
@@ -166,6 +168,9 @@ export {
   depositStatusValues,
   depositRejectionReasonValues,
   orphanDepositStatusValues,
+  withdrawalRequestStatusValues,
+  onchainTransferTypeValues,
+  onchainTransferStatusValues,
 } from './schema/financial';
 export type {
   AccountType,
@@ -186,6 +191,13 @@ export type {
   DepositStatus,
   DepositRejectionReason,
   OrphanDepositStatus,
+  WithdrawalRequest,
+  NewWithdrawalRequest,
+  WithdrawalRequestStatus,
+  OnchainTransfer,
+  NewOnchainTransfer,
+  OnchainTransferType,
+  OnchainTransferStatus,
 } from './schema/financial';
 
 // client

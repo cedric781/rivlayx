@@ -1,10 +1,12 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   bigserial,
   boolean,
   check,
   index,
   inet,
+  integer,
   jsonb,
   pgSchema,
   primaryKey,
@@ -47,7 +49,24 @@ export const users = authSchema.table(
     username: varchar('username', { length: 20 }).notNull().unique(),
     displayName: varchar('display_name', { length: 80 }),
     status: varchar('status', { length: 16, enum: userStatusValues }).notNull().default('active'),
+    /**
+     * First-factor admin credential: a `scrypt$…` hash (see
+     * `@rivlayx/shared/password`). Null for accounts without a password set —
+     * such accounts cannot complete admin first-factor login (fail-closed).
+     */
+    passwordHash: text('password_hash'),
     mfaRequired: boolean('mfa_required').notNull().default(false),
+    // ── C5: real TOTP MFA (per-admin) ──────────────────────────────────────
+    /** AES-256-GCM blob of the TOTP secret. Null until enrollment begins. */
+    mfaSecretEncrypted: text('mfa_secret_encrypted'),
+    /** Set on the first successful TOTP verification (enrollment complete). */
+    mfaEnrolledAt: timestamp('mfa_enrolled_at', { withTimezone: true }),
+    /** Highest TOTP step consumed — replay guard (a step ≤ this is rejected). */
+    mfaLastVerifiedStep: bigint('mfa_last_verified_step', { mode: 'number' }),
+    /** Consecutive failed TOTP attempts since the last success (rate limiting). */
+    mfaFailedAttempts: integer('mfa_failed_attempts').notNull().default(0),
+    /** When set and in the future, TOTP verification is locked out. */
+    mfaLockedUntil: timestamp('mfa_locked_until', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -69,6 +88,11 @@ export const wallets = authSchema.table(
     address: varchar('address', { length: 64 }).notNull(),
     source: varchar('source', { length: 24, enum: walletSourceValues }).notNull(),
     isPrimary: boolean('is_primary').notNull().default(false),
+    // ── Privy migration (Phase 1): delegated-signing readiness ──────────────
+    // Records whether the user has granted Privy delegated-signing on this
+    // embedded wallet. Storage only — no signing logic is wired in Phase 1.
+    delegated: boolean('delegated').notNull().default(false),
+    delegationGrantedAt: timestamp('delegation_granted_at', { withTimezone: true }),
     linkedAt: timestamp('linked_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

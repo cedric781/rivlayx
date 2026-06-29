@@ -2,55 +2,126 @@ import Link from 'next/link';
 import type { marketplace } from '@rivlayx/core';
 import { formatExpiry, formatUsdc, humanizeCategory, humanizeResolveType } from '@/lib/marketplace/format';
 import { ReputationBadge } from '@/components/reputation/reputation-badge';
-
-const chip: React.CSSProperties = {
-  display: 'inline-block',
-  fontSize: 11,
-  padding: '2px 8px',
-  borderRadius: 999,
-  background: '#eef2ff',
-  color: '#4458c7',
-  fontWeight: 600,
-};
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/marketplace/status-badge';
 
 export function BetCard({ bet }: { bet: marketplace.MarketplaceListItem }) {
   return (
     <Link
       href={`/bets/${bet.shortCode}`}
-      style={{
-        display: 'block',
-        textDecoration: 'none',
-        color: 'inherit',
-        border: '1px solid #e5e7eb',
-        borderRadius: 12,
-        padding: '1rem',
-        background: '#fff',
-      }}
+      style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span style={chip}>{humanizeCategory(bet.category)}</span>
-          <ReputationBadge tier={bet.creatorTier} provisional={bet.creatorProvisional} size="sm" />
+      <Card interactive style={{ display: 'flex', flexDirection: 'column', gap: 'var(--rx-space-3)' }}>
+        {/* Status + category, with expiry pushed right */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 'var(--rx-space-2)',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', gap: 'var(--rx-space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+            <StatusBadge status={bet.status} />
+            <Badge tone="accent">{humanizeCategory(bet.category)}</Badge>
+          </div>
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 'var(--rx-font-size-xs)',
+              fontWeight: 'var(--rx-font-weight-semibold)',
+              color: 'var(--rx-color-neutral-fg)',
+              background: 'var(--rx-color-neutral-bg)',
+              borderRadius: 'var(--rx-radius-pill)',
+              padding: '1px 8px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatExpiry(bet.expiresAt)}
+          </span>
         </div>
-        <span style={{ fontSize: 12, opacity: 0.6 }}>{formatExpiry(bet.expiresAt)}</span>
-      </div>
 
-      <h3 style={{ margin: '0.6rem 0 0.8rem', fontSize: 16, lineHeight: 1.35 }}>{bet.title}</h3>
+        {/* Title */}
+        <h3
+          className="rx-clamp-2"
+          title={bet.title}
+          style={{
+            margin: 0,
+            fontSize: 'var(--rx-font-size-md)',
+            fontWeight: 700,
+            lineHeight: 'var(--rx-line-snug)',
+          }}
+        >
+          {bet.title}
+        </h3>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1.2rem', fontSize: 13 }}>
-        <Field label="Stake / side" value={formatUsdc(bet.stakePerSideUsdc)} />
-        <Field label="Pot" value={formatUsdc(bet.potUsdc)} strong />
-        <Field label="Resolve" value={humanizeResolveType(bet.resolveType)} />
-      </div>
+        {/* Stake + payout — the primary information */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 'var(--rx-space-4)',
+            flexWrap: 'wrap',
+            borderTop: '1px solid var(--rx-color-paper-border-muted)',
+            paddingTop: 'var(--rx-space-3)',
+            marginTop: 'auto',
+          }}
+        >
+          <Metric label="Stake / side" value={formatUsdc(bet.stakePerSideUsdc)} />
+          <Metric label="Winner takes" value={formatUsdc(bet.potUsdc)} emphasis />
+        </div>
+
+        {/* Creator + resolution — supporting meta */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 'var(--rx-space-2)',
+            flexWrap: 'wrap',
+            borderTop: '1px solid var(--rx-color-paper-border-muted)',
+            paddingTop: 'var(--rx-space-3)',
+          }}
+        >
+          <span style={{ display: 'flex', gap: 'var(--rx-space-2)', alignItems: 'center' }}>
+            <span style={{ fontSize: 'var(--rx-font-size-xs)', color: 'var(--rx-color-neutral-fg)' }}>by</span>
+            <ReputationBadge tier={bet.creatorTier} provisional={bet.creatorProvisional} size="sm" />
+          </span>
+          <span style={{ fontSize: 'var(--rx-font-size-xs)', color: 'var(--rx-color-neutral-fg)' }}>
+            {humanizeResolveType(bet.resolveType)} resolution
+          </span>
+        </div>
+      </Card>
     </Link>
   );
 }
 
-function Field({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Metric({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
   return (
-    <span>
-      <span style={{ opacity: 0.55 }}>{label}: </span>
-      <span style={{ fontWeight: strong ? 700 : 500 }}>{value}</span>
-    </span>
+    <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          fontSize: 'var(--rx-font-size-xs)',
+          color: 'var(--rx-color-neutral-fg)',
+          textTransform: 'uppercase',
+          letterSpacing: 'var(--rx-letter-spacing-wide)',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          marginTop: 'var(--rx-space-1)',
+          fontSize: emphasis ? 'var(--rx-font-size-lg)' : 'var(--rx-font-size-base)',
+          fontWeight: emphasis ? 700 : 600,
+          color: emphasis ? 'var(--rx-color-accent)' : 'var(--rx-color-paper-ink)',
+        }}
+      >
+        {value}
+      </div>
+    </div>
   );
 }

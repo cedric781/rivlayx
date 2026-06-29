@@ -5,6 +5,7 @@ import { deposits as depositsTable } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
 import { getEnv } from '@/lib/env';
 import { DepositsTable } from '@/components/wallet/deposits-table';
+import { PageContainer } from '@/components/ui/page-container';
 
 export const metadata = { title: 'Deposit history — RivlayX' };
 
@@ -23,14 +24,14 @@ export default async function DepositsPage() {
     .limit(PAGE_SIZE);
 
   return (
-    <main style={{ maxWidth: 980, margin: '2rem auto', padding: '0 1rem' }}>
+    <PageContainer size="lg">
       <div style={{ marginBottom: '1rem' }}>
         <Link href="/wallet" style={{ color: '#5b8def', fontSize: 13 }}>
           ← Back to wallet
         </Link>
       </div>
 
-      <h1>Deposit history</h1>
+      <h1 style={{ fontSize: 'clamp(1.5rem, 4vw, 2rem)' }}>Deposit history</h1>
       <p style={{ opacity: 0.6, fontSize: 14, marginTop: 0 }}>
         Showing the {PAGE_SIZE} most recent. Full pagination arrives in Sprint 6+.
       </p>
@@ -38,6 +39,6 @@ export default async function DepositsPage() {
       <div style={{ marginTop: '1.5rem' }}>
         <DepositsTable deposits={rows} network={env.SOLANA_NETWORK} />
       </div>
-    </main>
+    </PageContainer>
   );
 }

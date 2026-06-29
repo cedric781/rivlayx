@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { eq } from 'drizzle-orm';
+import { hashPassword } from '@rivlayx/shared/password';
 import { createDb, userRoles, users, wallets } from '../src/index';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -10,6 +11,7 @@ loadDotenv({ path: resolve(here, '..', '..', '..', '.env') });
 
 const url = process.env['DATABASE_URL'];
 const bootstrapEmail = process.env['BOOTSTRAP_ADMIN_EMAIL'];
+const bootstrapPassword = process.env['BOOTSTRAP_ADMIN_PASSWORD'];
 
 if (!url) {
   console.error('DATABASE_URL is required');
@@ -17,6 +19,12 @@ if (!url) {
 }
 if (!bootstrapEmail) {
   console.error('BOOTSTRAP_ADMIN_EMAIL is required to seed the initial super_admin');
+  process.exit(1);
+}
+// First-factor admin login requires a real password; refuse to seed an admin
+// that could never sign in (fail-closed — no email-only access).
+if (!bootstrapPassword) {
+  console.error('BOOTSTRAP_ADMIN_PASSWORD is required to seed the initial super_admin');
   process.exit(1);
 }
 
@@ -46,6 +54,7 @@ try {
       username: 'admin',
       displayName: 'Bootstrap Super Admin',
       status: 'active',
+      passwordHash: hashPassword(bootstrapPassword),
       mfaRequired: true,
     });
     await tx.insert(wallets).values({

@@ -93,14 +93,14 @@ export function DepositInstructions({
         <strong>Safety brakes (Fase 1)</strong>
         <ul style={{ margin: '0.5rem 0 0 1.25rem', padding: 0, lineHeight: 1.7 }}>
           <li>
-            Minimum per deposit: <strong>{formatUsdc(minDepositUsdc)} USDC</strong>
+            Minimum per deposit: <strong>{formatUsdc(minDepositUsdc)}</strong>
           </li>
           <li>
-            Maximum per deposit: <strong>{formatUsdc(maxSingleDepositUsdc)} USDC</strong>
+            Maximum per deposit: <strong>{formatUsdc(maxSingleDepositUsdc)}</strong>
           </li>
           <li>
-            Platform TVL cap: <strong>{formatUsdc(maxTvlUsdc)} USDC</strong> — your remaining
-            headroom: <strong>{formatUsdc(headroom)} USDC</strong>
+            Platform TVL cap: <strong>{formatUsdc(maxTvlUsdc)}</strong> — your remaining
+            headroom: <strong>{formatUsdc(headroom)}</strong>
           </li>
           <li>Deposits outside these bounds are auto-rejected (no balance change).</li>
         </ul>

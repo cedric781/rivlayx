@@ -12,6 +12,7 @@ export interface AdminShellProps {
 const navItems: Array<{ href: string; label: string; permission: AdminPermission }> = [
   { href: '/dashboard', label: 'Dashboard', permission: 'viewDisputes' },
   { href: '/disputes', label: 'Disputes', permission: 'viewDisputes' },
+  { href: '/resolve', label: 'Resolve queue', permission: 'viewBets' },
   { href: '/bets', label: 'Bets', permission: 'viewBets' },
   { href: '/users', label: 'Users', permission: 'viewUsers' },
   { href: '/reputation', label: 'Reputation', permission: 'viewUsers' },
@@ -20,6 +21,7 @@ const navItems: Array<{ href: string; label: string; permission: AdminPermission
   { href: '/finance', label: 'Finance', permission: 'viewLedger' },
   { href: '/auto-resolve', label: 'Auto resolve', permission: 'viewBets' },
   { href: '/payouts', label: 'Payouts', permission: 'viewLedger' },
+  { href: '/withdrawals', label: 'Withdrawals', permission: 'viewLedger' },
   { href: '/freeze', label: 'Freeze', permission: 'freezeComponent' },
   { href: '/audit-log', label: 'Audit log', permission: 'viewAdminAuditLog' },
 ];

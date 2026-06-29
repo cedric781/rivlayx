@@ -12,7 +12,13 @@ export {
   type ParsedTransfer,
   type ParseOptions,
 } from './parse';
-export { computeHeliusSignature, verifyHeliusSignature } from './verify';
+export {
+  computeHeliusSignature,
+  verifyHeliusSignature,
+  verifyHeliusBearer,
+  isHeliusWebhookAuthorized,
+  type HeliusWebhookAuthInput,
+} from './verify';
 export {
   type IHeliusRpc,
   type SignatureStatus,
@@ -21,6 +27,7 @@ export {
   type SignaturesForAddressOptions,
 } from './rpc-interface';
 export { MockHeliusRpc } from './mock-rpc';
+export { RealHeliusRpc } from './real-rpc';
 export {
   buildMockTokenTransfer,
   buildSignedEnvelope,

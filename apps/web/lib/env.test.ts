@@ -54,6 +54,23 @@ describe('apps/web env validation', () => {
     expect(() => loadEnv({ ...valid, MAX_SINGLE_DEPOSIT_USDC: '-1' })).toThrow();
   });
 
+  it('defaults withdrawal caps to 25 and 100', () => {
+    const env = loadEnv(valid);
+    expect(env.MAX_WITHDRAW_USDC).toBe(25);
+    expect(env.MAX_DAILY_WITHDRAW_USDC).toBe(100);
+  });
+
+  it('coerces withdrawal caps from strings', () => {
+    const env = loadEnv({ ...valid, MAX_WITHDRAW_USDC: '40', MAX_DAILY_WITHDRAW_USDC: '250' });
+    expect(env.MAX_WITHDRAW_USDC).toBe(40);
+    expect(env.MAX_DAILY_WITHDRAW_USDC).toBe(250);
+  });
+
+  it('rejects non-positive withdrawal caps', () => {
+    expect(() => loadEnv({ ...valid, MAX_WITHDRAW_USDC: '0' })).toThrow();
+    expect(() => loadEnv({ ...valid, MAX_DAILY_WITHDRAW_USDC: '-1' })).toThrow();
+  });
+
   it('defaults SOLANA_NETWORK to devnet', () => {
     const env = loadEnv(valid);
     expect(env.SOLANA_NETWORK).toBe('devnet');
@@ -66,6 +83,34 @@ describe('apps/web env validation', () => {
 
   it('rejects unknown SOLANA_NETWORK', () => {
     expect(() => loadEnv({ ...valid, SOLANA_NETWORK: 'localnet' })).toThrow();
+  });
+
+  it('defaults PAYMENT_BACKEND to raw-vault', () => {
+    expect(loadEnv(valid).PAYMENT_BACKEND).toBe('raw-vault');
+  });
+
+  it('accepts PAYMENT_BACKEND=privy', () => {
+    expect(loadEnv({ ...valid, PAYMENT_BACKEND: 'privy' }).PAYMENT_BACKEND).toBe('privy');
+  });
+
+  it('rejects an unknown PAYMENT_BACKEND', () => {
+    expect(() => loadEnv({ ...valid, PAYMENT_BACKEND: 'stripe' })).toThrow(/PAYMENT_BACKEND/);
+  });
+
+  it('defaults PAYMENT_SHADOW_MODE to false', () => {
+    expect(loadEnv(valid).PAYMENT_SHADOW_MODE).toBe(false);
+  });
+
+  it('parses PAYMENT_SHADOW_MODE=true to boolean true', () => {
+    expect(loadEnv({ ...valid, PAYMENT_SHADOW_MODE: 'true' }).PAYMENT_SHADOW_MODE).toBe(true);
+  });
+
+  it('parses PAYMENT_SHADOW_MODE=false to boolean false (no truthy-string coercion)', () => {
+    expect(loadEnv({ ...valid, PAYMENT_SHADOW_MODE: 'false' }).PAYMENT_SHADOW_MODE).toBe(false);
+  });
+
+  it('rejects a non-boolean PAYMENT_SHADOW_MODE', () => {
+    expect(() => loadEnv({ ...valid, PAYMENT_SHADOW_MODE: 'yes' })).toThrow(/PAYMENT_SHADOW_MODE/);
   });
 
   it('allows missing Privy keys outside production', () => {
@@ -89,21 +134,35 @@ describe('apps/web env validation', () => {
       PRIVY_APP_SECRET: 'prod-app-secret',
       PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
       CRON_SECRET: 'prod-cron-secret-0123456789',
+      SOLANA_USDC_MINT: 'DevnetUsdcMintForProd11111111111111111111',
     });
     expect(env.PRIVY_APP_ID).toBe('prod-app-id');
     expect(env.PLATFORM_VAULT_ATA).toBe('VaultAtaAddressForProd1111111111111111111');
+    expect(env.SOLANA_USDC_MINT).toBe('DevnetUsdcMintForProd11111111111111111111');
   });
 
+  const prodBase = {
+    NODE_ENV: 'production',
+    DATABASE_URL: 'postgresql://u:p@host:5432/db',
+    PRIVY_APP_ID: 'prod-app-id',
+    NEXT_PUBLIC_PRIVY_APP_ID: 'prod-app-id',
+    PRIVY_APP_SECRET: 'prod-app-secret',
+    PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
+    CRON_SECRET: 'prod-cron-secret-0123456789',
+    SOLANA_USDC_MINT: 'DevnetUsdcMintForProd11111111111111111111',
+  };
+
   it('requires CRON_SECRET in production', () => {
-    expect(() =>
-      loadEnv({
-        NODE_ENV: 'production',
-        DATABASE_URL: 'postgresql://u:p@host:5432/db',
-        PRIVY_APP_ID: 'prod-app-id',
-        NEXT_PUBLIC_PRIVY_APP_ID: 'prod-app-id',
-        PRIVY_APP_SECRET: 'prod-app-secret',
-        PLATFORM_VAULT_ATA: 'VaultAtaAddressForProd1111111111111111111',
-      }),
-    ).toThrow(/CRON_SECRET/);
+    const { CRON_SECRET: _omitCron, ...noCron } = prodBase;
+    expect(() => loadEnv(noCron)).toThrow(/CRON_SECRET/);
+  });
+
+  it('requires SOLANA_USDC_MINT in production (no mainnet-mint fallback on devnet)', () => {
+    const { SOLANA_USDC_MINT: _omitMint, ...noMint } = prodBase;
+    expect(() => loadEnv(noMint)).toThrow(/SOLANA_USDC_MINT/);
+  });
+
+  it('does NOT require SOLANA_USDC_MINT outside production', () => {
+    expect(() => loadEnv(valid)).not.toThrow(); // dev/test use the mock provider
   });
 });

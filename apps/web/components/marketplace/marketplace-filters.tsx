@@ -2,9 +2,12 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { marketplace } from '@rivlayx/core';
-import { resolveTypeValues } from '@rivlayx/db';
+import * as marketplace from '@rivlayx/core/marketplace/types';
+import { resolveTypeValues } from '@rivlayx/db/schema';
 import { humanizeCategory, humanizeResolveType } from '@/lib/marketplace/format';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/toast/toast-provider';
 
 /** Exact creator-tier filter options (Sprint 16). */
 const TIER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
@@ -17,15 +20,17 @@ const TIER_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
 
 const inputStyle: React.CSSProperties = {
   padding: '0.4rem 0.55rem',
-  borderRadius: 8,
-  border: '1px solid #d1d5db',
-  fontSize: 14,
-  background: '#fff',
+  borderRadius: 'var(--rx-radius-lg)',
+  border: '1px solid var(--rx-color-paper-border)',
+  fontSize: 'var(--rx-font-size-base)',
+  background: 'var(--rx-color-paper)',
+  color: 'var(--rx-color-paper-ink)',
 };
 
 export function MarketplaceFilters() {
   const router = useRouter();
   const sp = useSearchParams();
+  const toast = useToast();
 
   const [q, setQ] = useState(sp.get('q') ?? '');
   const [category, setCategory] = useState(sp.get('category') ?? '');
@@ -51,6 +56,9 @@ export function MarketplaceFilters() {
   }
 
   function clear() {
+    const hadFilters = Boolean(
+      q || category || sport || resolveType || tier || minStake || maxStake,
+    );
     setQ('');
     setCategory('');
     setSport('');
@@ -60,6 +68,7 @@ export function MarketplaceFilters() {
     setMaxStake('');
     const section = sp.get('section');
     router.push(section ? `/bets?section=${section}` : '/bets');
+    if (hadFilters) toast.info('Filters cleared');
   }
 
   return (
@@ -68,22 +77,30 @@ export function MarketplaceFilters() {
       style={{
         display: 'flex',
         flexWrap: 'wrap',
-        gap: '0.6rem',
+        gap: 'var(--rx-space-2)',
         alignItems: 'center',
-        padding: '0.9rem',
-        border: '1px solid #e5e7eb',
-        borderRadius: 12,
-        background: '#fafafa',
-        marginBottom: '1.25rem',
+        padding: 'var(--rx-space-3)',
+        border: '1px solid var(--rx-color-paper-border-muted)',
+        borderRadius: 'var(--rx-radius-xl)',
+        background: 'var(--rx-color-paper)',
+        boxShadow: 'var(--rx-shadow-sm)',
+        marginBottom: 'var(--rx-space-5)',
       }}
     >
-      <input
+      <Input
+        label="Search bets"
+        hideLabel
         type="search"
-        placeholder="Search bets…"
+        placeholder="Search bets by title…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        style={{ ...inputStyle, flex: '1 1 200px' }}
-        aria-label="Search bets"
+        fullWidth={false}
+        containerStyle={{ flex: '1 1 100%' }}
+        style={{
+          padding: '0.4rem 0.55rem',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+          fontSize: 'var(--rx-font-size-base)',
+        }}
       />
 
       <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} aria-label="Category">
@@ -127,36 +144,69 @@ export function MarketplaceFilters() {
         ))}
       </select>
 
-      <input
+      <Input
+        label="Minimum stake"
+        hideLabel
         type="number"
         inputMode="decimal"
         min="0"
         placeholder="Min $"
         value={minStake}
         onChange={(e) => setMinStake(e.target.value)}
-        style={{ ...inputStyle, width: 90 }}
-        aria-label="Minimum stake"
+        fullWidth={false}
+        containerStyle={{ flex: '1 1 110px', minWidth: 0 }}
+        style={{
+          width: '100%',
+          padding: '0.4rem 0.55rem',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+          fontSize: 'var(--rx-font-size-base)',
+        }}
       />
-      <input
+      <Input
+        label="Maximum stake"
+        hideLabel
         type="number"
         inputMode="decimal"
         min="0"
         placeholder="Max $"
         value={maxStake}
         onChange={(e) => setMaxStake(e.target.value)}
-        style={{ ...inputStyle, width: 90 }}
-        aria-label="Maximum stake"
+        fullWidth={false}
+        containerStyle={{ flex: '1 1 110px', minWidth: 0 }}
+        style={{
+          width: '100%',
+          padding: '0.4rem 0.55rem',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+          fontSize: 'var(--rx-font-size-base)',
+        }}
       />
 
-      <button
+      <Button
         type="submit"
-        style={{ ...inputStyle, cursor: 'pointer', background: '#1f2937', color: '#fff', fontWeight: 600 }}
+        variant="primary"
+        size="sm"
+        style={{
+          padding: '0.4rem 0.55rem',
+          fontSize: 'var(--rx-font-size-base)',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+        }}
       >
         Apply
-      </button>
-      <button type="button" onClick={clear} style={{ ...inputStyle, cursor: 'pointer' }}>
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={clear}
+        style={{
+          padding: '0.4rem 0.55rem',
+          fontSize: 'var(--rx-font-size-base)',
+          fontWeight: 'var(--rx-font-weight-normal)',
+          borderColor: 'var(--rx-color-paper-border-strong)',
+        }}
+      >
         Clear
-      </button>
+      </Button>
     </form>
   );
 }

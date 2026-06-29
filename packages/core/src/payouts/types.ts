@@ -7,6 +7,12 @@ export interface TransferInput {
   amountUsdc: string;
   /** Bet ID for traceability. */
   betId: string;
+  /**
+   * Source wallet (base58). Optional + additive (Privy migration): the raw-vault
+   * provider ignores it (source is always the vault); the Privy provider signs
+   * from this user embedded wallet. Existing callers/providers are unaffected.
+   */
+  fromWallet?: string;
 }
 
 export interface TransferResult {

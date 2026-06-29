@@ -6,12 +6,14 @@ import {
   can,
   defaultLimits,
   isIdleExpired,
+  isMfaFresh,
   loadActiveSession,
   requiresMfaForAction,
   type AdminPermission,
 } from '@rivlayx/auth';
 import { userRoles, users, type RoleName, type Session, type User } from '@rivlayx/db';
 import { getDb } from '@/lib/db';
+import { getEnv } from '@/lib/env';
 
 export interface AdminAuthOk {
   ok: true;
@@ -95,14 +97,17 @@ export async function requireAdminApi(
     };
   }
 
-  if (requiresMfaForAction(options.permission) && !session.mfaVerifiedAt) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { error: { code: 'MFA_REQUIRED', message: 'Re-verify MFA to continue' } },
-        { status: 403 },
-      ),
-    };
+  if (requiresMfaForAction(options.permission)) {
+    const maxAgeMs = getEnv().MFA_MAX_AGE_MINUTES * 60_000;
+    if (!isMfaFresh(session, maxAgeMs)) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: { code: 'MFA_REQUIRED', message: 'Re-verify MFA to continue' } },
+          { status: 403 },
+        ),
+      };
+    }
   }
 
   const actorRole =
