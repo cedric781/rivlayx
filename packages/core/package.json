@@ -12,7 +12,8 @@
     "./bets": "./src/bets/index.ts",
     "./marketplace": "./src/marketplace/index.ts",
     "./marketplace/types": "./src/marketplace/types.ts",
-    "./admin": "./src/admin/index.ts"
+    "./admin": "./src/admin/index.ts",
+    "./withdrawals/cap": "./src/withdrawals/cap.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

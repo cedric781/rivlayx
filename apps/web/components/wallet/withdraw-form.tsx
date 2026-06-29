@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatUsdc } from '@/lib/marketplace/format';
-import { validateWithdrawalInput } from '@/lib/withdrawals/request';
+import { validateWithdrawalInput } from '@/lib/withdrawals/validate';
 
 export interface WithdrawFormProps {
   /** Available balance, decimal string. */
